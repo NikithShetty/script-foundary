@@ -1,22 +1,24 @@
-"""LLM service for script generation using OpenAI or Anthropic."""
+"""LLM service for script generation using CurricuLLM or OpenAI."""
 
 import os
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
-from anthropic import Anthropic
 
 
 def get_llm_client():
-    """Get LLM client (OpenAI or Anthropic) based on available API key."""
+    """Get LLM client (CurricuLLM or OpenAI) based on available API key.
+    CurricuLLM is prioritized as it's OpenAI-compliant and optimized for educational content."""
+    curricullm_key = os.getenv("CURRICULLM_API_KEY")
+    curricullm_url = os.getenv("CURRICULLM_API_URL", "https://api.curricullm.com")
     openai_key = os.getenv("OPENAI_API_KEY")
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     
-    if openai_key:
+    # Prioritize CurricuLLM for script generators (OpenAI-compliant API)
+    if curricullm_key:
+        return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "openai"
+    elif openai_key:
         return OpenAI(api_key=openai_key), "openai"
-    elif anthropic_key:
-        return Anthropic(api_key=anthropic_key), "anthropic"
     else:
-        raise ValueError("No LLM API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY")
+        raise ValueError("No LLM API key found. Set CURRICULLM_API_KEY or OPENAI_API_KEY")
 
 
 def generate_script(prompt: str) -> Dict[str, Any]:
@@ -32,9 +34,10 @@ def generate_script(prompt: str) -> Dict[str, Any]:
     client, provider = get_llm_client()
     
     try:
-        if provider == "openai":
+        # Check for CurricuLLM model first, then OpenAI model
+        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
             response = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+            model=model,
                 messages=[
                     {"role": "system", "content": "You are an expert educational script writer."},
                     {"role": "user", "content": prompt}
@@ -43,15 +46,6 @@ def generate_script(prompt: str) -> Dict[str, Any]:
                 max_tokens=4000,
             )
             content = response.choices[0].message.content
-        else:  # anthropic
-            response = client.messages.create(
-                model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
-                max_tokens=4000,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            content = response.content[0].text
         
         # Parse response into structured format
         # For now, return basic structure - can be enhanced with better parsing
@@ -154,9 +148,10 @@ Return JSON format: {{"topic": "...", "year_level": ..., "learning_objective": "
 Only include fields that have values."""
     
     try:
-        if provider == "openai":
+        # Check for CurricuLLM model first, then OpenAI model
+        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
             response = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+            model=model,
                 messages=[
                     {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
                     {"role": "user", "content": prompt}
@@ -165,16 +160,6 @@ Only include fields that have values."""
                 max_tokens=500,
             )
             content = response.choices[0].message.content
-        else:  # anthropic
-            response = client.messages.create(
-                model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
-                max_tokens=500,
-                system="You are an expert at extracting structured information from educational requests.",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            content = response.content[0].text
         
         # Parse JSON response
         import json
@@ -235,9 +220,10 @@ Generate a friendly, helpful response that:
 Keep the response concise and friendly."""
     
     try:
-        if provider == "openai":
+        # Check for CurricuLLM model first, then OpenAI model
+        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
             response = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+            model=model,
                 messages=[
                     {"role": "system", "content": "You are a helpful educational assistant."},
                     {"role": "user", "content": prompt}
@@ -246,16 +232,6 @@ Keep the response concise and friendly."""
                 max_tokens=300,
             )
             content = response.choices[0].message.content
-        else:  # anthropic
-            response = client.messages.create(
-                model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
-                max_tokens=300,
-                system="You are a friendly and helpful educational assistant.",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            content = response.content[0].text
         
         return content
     except Exception as e:

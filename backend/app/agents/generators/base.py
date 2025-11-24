@@ -18,10 +18,8 @@ class BaseScriptGenerator(ABC):
     
     def _get_model(self) -> str:
         """Get the appropriate model name based on provider."""
-        if self.provider == "openai":
-            return os.getenv("OPENAI_MODEL", "gpt-4")
-        else:  # anthropic
-            return os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+        # Check for CurricuLLM model first (prioritized for script generators), then OpenAI model
+        return os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
     
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -95,7 +93,6 @@ Learning Objective: {learning_objective}
             prompt = self.build_prompt(context)
             system_prompt = self.get_system_prompt()
             
-            if self.provider == "openai":
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -106,16 +103,6 @@ Learning Objective: {learning_objective}
                     max_tokens=4000,
                 )
                 content = response.choices[0].message.content
-            else:  # anthropic
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4000,
-                    system=system_prompt,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
-                )
-                content = response.content[0].text
             
             # Parse scenes from script
             scenes = self._parse_scenes_from_script(content)

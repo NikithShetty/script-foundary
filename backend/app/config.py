@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # LLM Settings
     openai_model: str = "gpt-4"
     anthropic_model: str = "claude-3-sonnet-20240229"
+    curricullm_model: Optional[str] = None
     
     class Config:
         env_file = ".env"
