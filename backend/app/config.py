@@ -1,8 +1,9 @@
 """Configuration management with feature flags."""
 
 import os
-from pydantic_settings import BaseSettings
-from typing import List, Optional
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Optional, Any
 
 
 class Settings(BaseSettings):
@@ -49,13 +50,52 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-3-sonnet-20240229"
     curricullm_model: Optional[str] = None
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    # LangGraph Settings
+    graph_recursion_limit: int = 2
+    
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).parent.parent / ".env"),
+        env_file_encoding='utf-8',
+        case_sensitive=False
+    )
 
 
 # Global settings instance
+# Add debug logging to verify .env file loading
+import logging
+_logger = logging.getLogger(__name__)
+
+# Check if .env file exists
+_env_file_path = Path(__file__).parent.parent / ".env"
+if _env_file_path.exists():
+    _logger.info(f"Found .env file at: {_env_file_path}")
+else:
+    _logger.warning(f".env file not found at: {_env_file_path}")
+
 settings = Settings()
+
+# Log loaded settings (mask sensitive values)
+if settings.debug:
+    def _mask_value(key: str, value: Any) -> str:
+        """Mask sensitive values."""
+        if value is None:
+            return "None"
+        value_str = str(value)
+        sensitive_keywords = ['key', 'password', 'secret', 'token', 'api_key', 'auth']
+        key_lower = key.lower()
+        if any(keyword in key_lower for keyword in sensitive_keywords):
+            if value_str and len(value_str) > 8:
+                return f"{value_str[:4]}...{value_str[-4:]}"
+            return "***" if value_str else "None"
+        return value_str
+    
+    _logger.info("=" * 60)
+    _logger.info("Loaded Settings from .env file:")
+    _logger.info("=" * 60)
+    for field_name, field_value in settings.model_dump().items():
+        masked = _mask_value(field_name, field_value)
+        _logger.info(f"  {field_name}={masked}")
+    _logger.info("=" * 60)
 
 
 def get_pipeline_config_from_settings() -> dict:

@@ -93,16 +93,16 @@ Learning Objective: {learning_objective}
             prompt = self.build_prompt(context)
             system_prompt = self.get_system_prompt()
             
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=4000,
-                )
-                content = response.choices[0].message.content
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=4000,
+            )
+            content = response.choices[0].message.content
             
             # Parse scenes from script
             scenes = self._parse_scenes_from_script(content)

@@ -13,6 +13,7 @@ from app.agents.conditions import (
     check_if_ready_to_generate,
     check_fact_check_results,
 )
+from app.config import settings
 
 
 def create_script_generation_workflow():

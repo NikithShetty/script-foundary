@@ -32,6 +32,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
+from typing import Any
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -61,30 +62,29 @@ app.add_middleware(
 )
 
 
-# Print environment variables on startup if debug is enabled
+# Print loaded settings values on startup if debug is enabled
 if settings.debug:
-    def mask_sensitive_value(key: str, value: str) -> str:
+    def mask_sensitive_value(key: str, value: Any) -> str:
         """Mask sensitive values in environment variables."""
+        if value is None:
+            return "None"
+        value_str = str(value)
         sensitive_keywords = ['key', 'password', 'secret', 'token', 'api_key', 'auth']
         key_lower = key.lower()
         if any(keyword in key_lower for keyword in sensitive_keywords):
-            if value and len(value) > 8:
-                return f"{value[:4]}...{value[-4:]}"
-            return "***" if value else ""
-        return value
+            if value_str and len(value_str) > 8:
+                return f"{value_str[:4]}...{value_str[-4:]}"
+            return "***" if value_str else "None"
+        return value_str
     
     logger.info("=" * 60)
-    logger.info("DEBUG MODE: Environment Variables")
+    logger.info("DEBUG MODE: Loaded Settings Values (from .env file + environment)")
     logger.info("=" * 60)
     
-    # Get all environment variables
-    env_vars = dict(os.environ)
-    
-    # Sort for better readability
-    for key in sorted(env_vars.keys()):
-        value = env_vars[key]
-        masked_value = mask_sensitive_value(key, value)
-        logger.info(f"  {key}={masked_value}")
+    # Show actual settings values (these come from .env file + os.environ)
+    for field_name, field_value in settings.model_dump().items():
+        masked = mask_sensitive_value(field_name, field_value)
+        logger.info(f"  {field_name}={masked}")
     
     logger.info("=" * 60)
 
@@ -337,8 +337,11 @@ async def send_message(session_id: str, request: ChatRequest):
         # Update with user input
         state["user_input"] = request.message
         
-        # Invoke workflow
-        config = {"configurable": {"thread_id": session_id}}
+        # Invoke workflow with recursion limit
+        config = {
+            "configurable": {"thread_id": session_id},
+            "recursion_limit": settings.graph_recursion_limit
+        }
         result = await workflow.ainvoke(state, config)
         
         # Save updated state

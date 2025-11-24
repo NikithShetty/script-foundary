@@ -3,14 +3,15 @@
 import os
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
+from app.config import settings
 
 
 def get_llm_client():
     """Get LLM client (CurricuLLM or OpenAI) based on available API key.
     CurricuLLM is prioritized as it's OpenAI-compliant and optimized for educational content."""
-    curricullm_key = os.getenv("CURRICULLM_API_KEY")
-    curricullm_url = os.getenv("CURRICULLM_API_URL", "https://api.curricullm.com")
-    openai_key = os.getenv("OPENAI_API_KEY")
+    curricullm_key = settings.curricullm_api_key
+    curricullm_url = settings.curricullm_api_url
+    openai_key = settings.openai_api_key
     
     # Prioritize CurricuLLM for script generators (OpenAI-compliant API)
     if curricullm_key:
@@ -35,17 +36,17 @@ def generate_script(prompt: str) -> Dict[str, Any]:
     
     try:
         # Check for CurricuLLM model first, then OpenAI model
-        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
-            response = client.chat.completions.create(
+        model = settings.curricullm_model or settings.openai_model
+        response = client.chat.completions.create(
             model=model,
-                messages=[
-                    {"role": "system", "content": "You are an expert educational script writer."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=4000,
-            )
-            content = response.choices[0].message.content
+            messages=[
+                {"role": "system", "content": "You are an expert educational script writer."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=4000,
+        )
+        content = response.choices[0].message.content
         
         # Parse response into structured format
         # For now, return basic structure - can be enhanced with better parsing
@@ -149,17 +150,17 @@ Only include fields that have values."""
     
     try:
         # Check for CurricuLLM model first, then OpenAI model
-        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
-            response = client.chat.completions.create(
+        model = settings.curricullm_model or settings.openai_model
+        response = client.chat.completions.create(
             model=model,
-                messages=[
-                    {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=500,
-            )
-            content = response.choices[0].message.content
+            messages=[
+                {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=500,
+        )
+        content = response.choices[0].message.content
         
         # Parse JSON response
         import json
@@ -221,17 +222,17 @@ Keep the response concise and friendly."""
     
     try:
         # Check for CurricuLLM model first, then OpenAI model
-        model = os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
-            response = client.chat.completions.create(
+        model = settings.curricullm_model or settings.openai_model
+        response = client.chat.completions.create(
             model=model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful educational assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=300,
-            )
-            content = response.choices[0].message.content
+            messages=[
+                {"role": "system", "content": "You are a helpful educational assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300,
+        )
+        content = response.choices[0].message.content
         
         return content
     except Exception as e:
