@@ -13,6 +13,7 @@ from app.utils.validators import (
     validate_learning_objective,
 )
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -25,14 +26,49 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS middleware
+# CORS middleware - reads from ALLOWED_ORIGINS environment variable
+# Supports single endpoint or comma-separated list
+cors_origins = [
+    origin.strip() 
+    for origin in settings.allowed_origins.split(",") 
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins.split(","),
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Print environment variables on startup if debug is enabled
+if settings.debug:
+    def mask_sensitive_value(key: str, value: str) -> str:
+        """Mask sensitive values in environment variables."""
+        sensitive_keywords = ['key', 'password', 'secret', 'token', 'api_key', 'auth']
+        key_lower = key.lower()
+        if any(keyword in key_lower for keyword in sensitive_keywords):
+            if value and len(value) > 8:
+                return f"{value[:4]}...{value[-4:]}"
+            return "***" if value else ""
+        return value
+    
+    logger.info("=" * 60)
+    logger.info("DEBUG MODE: Environment Variables")
+    logger.info("=" * 60)
+    
+    # Get all environment variables
+    env_vars = dict(os.environ)
+    
+    # Sort for better readability
+    for key in sorted(env_vars.keys()):
+        value = env_vars[key]
+        masked_value = mask_sensitive_value(key, value)
+        logger.info(f"  {key}={masked_value}")
+    
+    logger.info("=" * 60)
 
 
 @app.get("/health")

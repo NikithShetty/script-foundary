@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     debug: bool = True
     log_level: str = "INFO"
     
-    # CORS
+    # CORS - reads from ALLOWED_ORIGINS environment variable
+    # Supports single endpoint or comma-separated list
     allowed_origins: str = "http://localhost:3000,http://localhost:3001"
     
     # Feature Flags
