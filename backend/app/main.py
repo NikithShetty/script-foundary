@@ -5,6 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.models.script import ScriptInput, ScriptOutput
 from app.models.pipeline import PipelineConfig
+from app.models.chat import (
+    ChatRequest,
+    ChatResponse,
+    SessionStatus,
+    ScriptResponse,
+    GenerationStatus,
+    AgentAction,
+)
 from app.pipeline.core import run_pipeline
 from app.config import settings, get_pipeline_config_from_settings
 from app.utils.validators import (
@@ -12,8 +20,18 @@ from app.utils.validators import (
     validate_topic,
     validate_learning_objective,
 )
+from app.agents.workflow import create_script_generation_workflow
+from app.services.session_storage import (
+    store_session,
+    load_session,
+    delete_session,
+    create_initial_state,
+)
+from app.agents.nodes import identify_missing_fields
 import logging
 import os
+import uuid
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -69,6 +87,10 @@ if settings.debug:
         logger.info(f"  {key}={masked_value}")
     
     logger.info("=" * 60)
+
+
+# Create workflow instance (singleton)
+workflow = create_script_generation_workflow()
 
 
 @app.get("/health")
@@ -248,6 +270,331 @@ async def fact_check_text(request: dict):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fact-check: {str(e)}"
         )
+
+
+# ============================================================================
+# Chat Session Endpoints
+# ============================================================================
+
+@app.post("/api/v1/chat/sessions", response_model=SessionStatus)
+async def create_session():
+    """
+    Create a new conversation session.
+    
+    Returns:
+        Session status with session_id
+    """
+    try:
+        session_id = str(uuid.uuid4())
+        initial_state = create_initial_state(session_id)
+        
+        # Store initial state
+        await store_session(session_id, initial_state)
+        
+        return SessionStatus(
+            session_id=session_id,
+            status=initial_state["status"],
+            collected_data={
+                "topic": initial_state.get("topic"),
+                "year_level": initial_state.get("year_level"),
+                "learning_objective": initial_state.get("learning_objective"),
+                "subject": initial_state.get("subject"),
+            },
+            missing_fields=identify_missing_fields(initial_state),
+            conversation_history=[],
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+    except Exception as e:
+        logger.error(f"Error creating session: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create session: {str(e)}"
+        )
+
+
+@app.post("/api/v1/chat/sessions/{session_id}/messages", response_model=ChatResponse)
+async def send_message(session_id: str, request: ChatRequest):
+    """
+    Send message to orchestrator and process through workflow.
+    
+    Args:
+        session_id: Session identifier
+        request: Chat request with message
+        
+    Returns:
+        Chat response with assistant message and state
+    """
+    try:
+        # Load session state
+        state = await load_session(session_id)
+        if not state:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        # Update with user input
+        state["user_input"] = request.message
+        
+        # Invoke workflow
+        config = {"configurable": {"thread_id": session_id}}
+        result = await workflow.ainvoke(state, config)
+        
+        # Save updated state
+        await store_session(session_id, result)
+        
+        # Extract latest assistant message
+        messages = result.get("messages", [])
+        assistant_message = None
+        for msg in reversed(messages):
+            if hasattr(msg, "type") and msg.type == "ai":
+                assistant_message = msg.content
+                break
+        
+        if not assistant_message:
+            assistant_message = "I'm processing your request..."
+        
+        # Build agent actions list
+        agent_actions = []
+        if result.get("status") == "gathering_curriculum":
+            agent_actions.append(AgentAction(
+                agent="curriculum_agent",
+                action="fetching_curriculum",
+                status="in_progress"
+            ))
+        elif result.get("status") == "generating":
+            subject = result.get("subject", "default")
+            agent_actions.append(AgentAction(
+                agent=f"{subject.lower()}_script_agent",
+                action="generating_script",
+                status="in_progress"
+            ))
+        elif result.get("status") == "fact_checking":
+            agent_actions.append(AgentAction(
+                agent="fact_checker_agent",
+                action="verifying_facts",
+                status="in_progress"
+            ))
+        
+        # Format response
+        return ChatResponse(
+            message_id=str(uuid.uuid4()),
+            role="assistant",
+            content=assistant_message,
+            session_id=session_id,
+            collected_data={
+                "topic": result.get("topic"),
+                "year_level": result.get("year_level"),
+                "learning_objective": result.get("learning_objective"),
+                "subject": result.get("subject"),
+            },
+            status=result.get("status", "collecting_info"),
+            missing_fields=identify_missing_fields(result),
+            ready_to_generate=result.get("ready_to_generate", False),
+            agent_actions=agent_actions,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing message: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process message: {str(e)}"
+        )
+
+
+@app.get("/api/v1/chat/sessions/{session_id}", response_model=SessionStatus)
+async def get_session(session_id: str):
+    """
+    Get current session status and collected data.
+    
+    Args:
+        session_id: Session identifier
+        
+    Returns:
+        Session status
+    """
+    try:
+        state = await load_session(session_id)
+        if not state:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        # Format conversation history
+        conversation_history = []
+        for msg in state.get("messages", []):
+            if hasattr(msg, "type") and hasattr(msg, "content"):
+                conversation_history.append({
+                    "role": msg.type,
+                    "content": msg.content
+                })
+        
+        # Build generation progress
+        generation_progress = None
+        if state.get("status") in ["generating", "fact_checking", "needs_refinement"]:
+            progress_map = {
+                "generating": 0.5,
+                "fact_checking": 0.75,
+                "needs_refinement": 0.6,
+            }
+            generation_progress = {
+                "current_step": state.get("status"),
+                "current_agent": _get_current_agent(state),
+                "progress": progress_map.get(state.get("status"), 0.0),
+            }
+        
+        return SessionStatus(
+            session_id=session_id,
+            status=state.get("status", "collecting_info"),
+            collected_data={
+                "topic": state.get("topic"),
+                "year_level": state.get("year_level"),
+                "learning_objective": state.get("learning_objective"),
+                "subject": state.get("subject"),
+            },
+            missing_fields=identify_missing_fields(state),
+            conversation_history=conversation_history,
+            generation_progress=generation_progress,
+            created_at=datetime.now(),  # TODO: Store actual created_at in state
+            updated_at=datetime.now(),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get session: {str(e)}"
+        )
+
+
+@app.get("/api/v1/chat/sessions/{session_id}/script", response_model=ScriptResponse)
+async def get_script(session_id: str):
+    """
+    Retrieve generated script when status is "completed".
+    
+    Args:
+        session_id: Session identifier
+        
+    Returns:
+        Complete script with all metadata
+    """
+    try:
+        state = await load_session(session_id)
+        if not state:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        if state.get("status") != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Script not ready. Current status: {state.get('status')}"
+            )
+        
+        script = state.get("script")
+        if not script:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Script not found in session"
+            )
+        
+        return ScriptResponse(
+            session_id=session_id,
+            topic=state.get("topic", ""),
+            year_level=state.get("year_level", 0),
+            learning_objective=state.get("learning_objective", ""),
+            script=script,
+            scenes=state.get("script_scenes", []),
+            curriculum={
+                "outcomes": state.get("curriculum_outcomes", []),
+                "codes": state.get("curriculum_codes", []),
+            },
+            fact_checking={
+                "confidence_score": state.get("confidence_score", 0.0),
+                "results": state.get("fact_check_results", {}),
+            },
+            misconceptions={"misconceptions": state.get("misconceptions", [])},
+            cultural_safety={"flags": state.get("cultural_safety_flags", [])},
+            accessibility={"metadata": state.get("accessibility_metadata", {})},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting script: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get script: {str(e)}"
+        )
+
+
+@app.get("/api/v1/chat/sessions/{session_id}/generation/status", response_model=GenerationStatus)
+async def get_generation_status(session_id: str):
+    """
+    Poll for generation status (for long-running operations).
+    
+    Args:
+        session_id: Session identifier
+        
+    Returns:
+        Generation status with progress
+    """
+    try:
+        state = await load_session(session_id)
+        if not state:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        status_value = state.get("status", "collecting_info")
+        progress_map = {
+            "collecting_info": 0.1,
+            "gathering_curriculum": 0.2,
+            "ready_to_generate": 0.3,
+            "generating": 0.5,
+            "script_generated": 0.6,
+            "fact_checking": 0.75,
+            "needs_refinement": 0.6,
+            "completed": 1.0,
+            "failed": 0.0,
+        }
+        
+        return GenerationStatus(
+            status=status_value,
+            progress=progress_map.get(status_value, 0.0),
+            current_step=status_value,
+            current_agent=_get_current_agent(state),
+            estimated_time_remaining=None,  # TODO: Calculate based on progress
+            errors=state.get("errors", []),
+            warnings=state.get("warnings", []),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting generation status: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get generation status: {str(e)}"
+        )
+
+
+def _get_current_agent(state: dict) -> str:
+    """Get the name of the current agent based on state."""
+    status_value = state.get("status", "")
+    if status_value == "gathering_curriculum":
+        return "curriculum_agent"
+    elif status_value == "generating":
+        subject = state.get("subject", "default")
+        return f"{subject.lower()}_script_agent"
+    elif status_value == "fact_checking":
+        return "fact_checker_agent"
+    else:
+        return "orchestrator_agent"
 
 
 @app.exception_handler(Exception)

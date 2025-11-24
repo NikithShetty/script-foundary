@@ -1,7 +1,7 @@
 """LLM service for script generation using OpenAI or Anthropic."""
 
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from anthropic import Anthropic
 
@@ -119,6 +119,147 @@ def _parse_scenes_from_script(script: str) -> List[Dict[str, Any]]:
         })
     
     return scenes
+
+
+async def extract_information_from_message(
+    message: str,
+    current_state: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Extract structured information from a natural language message.
+    
+    Args:
+        message: User message
+        current_state: Current session state
+        
+    Returns:
+        Dictionary with extracted fields
+    """
+    client, provider = get_llm_client()
+    
+    # Build prompt for information extraction
+    prompt = f"""Extract structured information from the following educator message. 
+Return a JSON object with any of these fields if mentioned: topic, year_level, learning_objective, subject.
+
+Current state:
+- Topic: {current_state.get('topic', 'Not set')}
+- Year Level: {current_state.get('year_level', 'Not set')}
+- Learning Objective: {current_state.get('learning_objective', 'Not set')}
+- Subject: {current_state.get('subject', 'Not set')}
+
+Educator message: {message}
+
+Extract only the fields that are explicitly mentioned or can be clearly inferred. 
+Return JSON format: {{"topic": "...", "year_level": ..., "learning_objective": "...", "subject": "..."}}
+Only include fields that have values."""
+    
+    try:
+        if provider == "openai":
+            response = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+                messages=[
+                    {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500,
+            )
+            content = response.choices[0].message.content
+        else:  # anthropic
+            response = client.messages.create(
+                model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
+                max_tokens=500,
+                system="You are an expert at extracting structured information from educational requests.",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+            )
+            content = response.content[0].text
+        
+        # Parse JSON response
+        import json
+        # Try to extract JSON from response
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        extracted = json.loads(content)
+        return extracted
+    except Exception as e:
+        # Return empty dict on error
+        return {}
+
+
+async def generate_conversation_response(
+    state: Dict[str, Any],
+    missing_fields: List[str]
+) -> str:
+    """
+    Generate a conversational response based on current state and missing fields.
+    
+    Args:
+        state: Current session state
+        missing_fields: List of missing required fields
+        
+    Returns:
+        Assistant response message
+    """
+    client, provider = get_llm_client()
+    
+    # Build context
+    topic = state.get("topic", "Not specified")
+    year_level = state.get("year_level", "Not specified")
+    learning_objective = state.get("learning_objective", "Not specified")
+    subject = state.get("subject", "Not specified")
+    
+    prompt = f"""You are a helpful educational assistant helping an educator create an educational video script.
+
+Current information collected:
+- Topic: {topic}
+- Year Level: {year_level}
+- Learning Objective: {learning_objective}
+- Subject: {subject}
+
+Missing required information: {', '.join(missing_fields) if missing_fields else 'None'}
+
+Generate a friendly, helpful response that:
+1. Acknowledges what information has been collected
+2. Asks for any missing required information in a natural, conversational way
+3. If all information is collected, confirm readiness to generate the script
+
+Keep the response concise and friendly."""
+    
+    try:
+        if provider == "openai":
+            response = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+                messages=[
+                    {"role": "system", "content": "You are a helpful educational assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300,
+            )
+            content = response.choices[0].message.content
+        else:  # anthropic
+            response = client.messages.create(
+                model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
+                max_tokens=300,
+                system="You are a friendly and helpful educational assistant.",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+            )
+            content = response.content[0].text
+        
+        return content
+    except Exception as e:
+        return "I'm here to help you create an educational script. Please provide the topic, year level, and learning objective."
 
 
 
