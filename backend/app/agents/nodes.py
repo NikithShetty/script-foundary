@@ -17,20 +17,26 @@ from app.agents.generators import (
 logger = logging.getLogger(__name__)
 
 
-def get_script_generator_for_subject(subject: str):
-    """Get the appropriate script generator for a subject."""
+def get_script_generator_for_subject(subject: str, node_name: str = "script_generation"):
+    """
+    Get the appropriate script generator for a subject.
+    
+    Args:
+        subject: Subject name
+        node_name: Node name for LLM configuration (default: "script_generation")
+    """
     if not subject:
-        return DefaultScriptAgent()
+        return DefaultScriptAgent(node_name=node_name)
     
     subject_lower = subject.lower()
     if "science" in subject_lower:
-        return ScienceScriptAgent()
+        return ScienceScriptAgent(node_name=node_name)
     elif "math" in subject_lower or "mathematics" in subject_lower:
-        return MathScriptAgent()
+        return MathScriptAgent(node_name=node_name)
     elif "english" in subject_lower or "language" in subject_lower:
-        return EnglishScriptAgent()
+        return EnglishScriptAgent(node_name=node_name)
     else:
-        return DefaultScriptAgent()
+        return DefaultScriptAgent(node_name=node_name)
 
 
 def identify_missing_fields(state: SessionState) -> list:
@@ -64,7 +70,8 @@ async def conversation_node(state: SessionState) -> SessionState:
         # Use LLM to extract structured information
         extracted_info = await extract_information_from_message(
             message=user_message,
-            current_state=state
+            current_state=state,
+            node_name="conversation"
         )
         
         # Update state with extracted fields
@@ -81,7 +88,8 @@ async def conversation_node(state: SessionState) -> SessionState:
         missing_fields = identify_missing_fields(state)
         response = await generate_conversation_response(
             state=state,
-            missing_fields=missing_fields
+            missing_fields=missing_fields,
+            node_name="conversation"
         )
         
         # Add assistant response to conversation
@@ -187,7 +195,7 @@ async def script_generation_node(state: SessionState) -> SessionState:
         
         # Select appropriate script generator based on subject
         subject = state.get("subject", "")
-        script_generator = get_script_generator_for_subject(subject)
+        script_generator = get_script_generator_for_subject(subject, node_name="script_generation")
         
         # Build context for script generation
         context = {

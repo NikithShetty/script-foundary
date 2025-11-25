@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     enable_accessibility: bool = True
     
     # LLM Settings
+    # General model: Used by default for most nodes (prioritized)
+    general_model: str = "gpt-4"  # Default general model (OpenAI)
+    general_model_provider: str = "openai"  # Provider for general model: "openai" or "curricullm"
+    
+    # Curriculum model: Used specifically for curriculum_agent and script_generation nodes
+    curriculum_model: Optional[str] = None  # Curriculum-specific model (CurricuLLM)
+    curriculum_model_provider: str = "curricullm"  # Provider for curriculum model: "curricullm" or "openai"
+    
+    # Legacy settings (for backward compatibility)
     openai_model: str = "gpt-4"
     anthropic_model: str = "claude-3-sonnet-20240229"
     curricullm_model: Optional[str] = None

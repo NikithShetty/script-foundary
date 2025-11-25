@@ -1,8 +1,8 @@
 """Base script generator class."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
-from app.services.llm_service import get_llm_client
+from typing import Dict, Any, Optional
+from app.services.llm_service import get_llm_client, get_llm_client_for_node
 import os
 import logging
 
@@ -12,14 +12,17 @@ logger = logging.getLogger(__name__)
 class BaseScriptGenerator(ABC):
     """Base class for subject-specific script generators."""
     
-    def __init__(self):
-        self.client, self.provider = get_llm_client()
-        self.model = self._get_model()
-    
-    def _get_model(self) -> str:
-        """Get the appropriate model name based on provider."""
-        # Check for CurricuLLM model first (prioritized for script generators), then OpenAI model
-        return os.getenv("CURRICULLM_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
+    def __init__(self, node_name: Optional[str] = None):
+        """
+        Initialize the script generator.
+        
+        Args:
+            node_name: Optional node name for node-specific LLM configuration (e.g., "script_generation")
+        """
+        if node_name:
+            self.client, self.provider, self.model = get_llm_client_for_node(node_name)
+        else:
+            self.client, self.provider, self.model = get_llm_client()
     
     @abstractmethod
     def get_system_prompt(self) -> str:

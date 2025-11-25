@@ -33,8 +33,8 @@ class ScriptGenerator(PipelineModule):
                 misconceptions=context.misconceptions,
             )
             
-            # Generate script using LLM service
-            script_data = generate_script(prompt)
+            # Generate script using LLM service (uses curriculum model)
+            script_data = generate_script(prompt, node_name="script_generation")
             
             context.generated_script = script_data.get("script", "")
             context.script_scenes = script_data.get("scenes", [])

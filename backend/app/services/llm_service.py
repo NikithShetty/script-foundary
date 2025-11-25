@@ -31,37 +31,149 @@ def log_llm_call(function_name: str, messages: list, model: str, response_conten
     logger.info("=" * 80)
 
 
-def get_llm_client():
-    """Get LLM client (CurricuLLM or OpenAI) based on available API key.
-    CurricuLLM is prioritized as it's OpenAI-compliant and optimized for educational content."""
+def get_llm_client(provider: Optional[str] = None, model: Optional[str] = None, use_general: bool = True):
+    """
+    Get LLM client (CurricuLLM or OpenAI) based on available API key.
+    
+    Args:
+        provider: Optional provider name ("curricullm" or "openai"). If None, uses default priority.
+        model: Optional model name. If None, uses default model for the provider.
+        use_general: If True, uses general model (prioritized). If False, uses curriculum model.
+                    Only used when provider is None.
+        
+    Returns:
+        Tuple of (client, provider_name, model_name)
+    """
     curricullm_key = settings.curricullm_api_key
     curricullm_url = settings.curricullm_api_url
     openai_key = settings.openai_api_key
     
-    # Prioritize CurricuLLM for script generators (OpenAI-compliant API)
-    if curricullm_key:
-        return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "openai"
-    elif openai_key:
-        return OpenAI(api_key=openai_key), "openai"
+    # If provider is specified, use it
+    if provider:
+        provider_lower = provider.lower()
+        if provider_lower == "curricullm":
+            if not curricullm_key:
+                raise ValueError("CurricuLLM API key not found. Set CURRICULLM_API_KEY")
+            model_name = model or settings.curricullm_model or settings.openai_model
+            return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "curricullm", model_name
+        elif provider_lower == "openai":
+            if not openai_key:
+                raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY")
+            model_name = model or settings.openai_model
+            return OpenAI(api_key=openai_key), "openai", model_name
+        else:
+            raise ValueError(f"Unknown provider: {provider}. Use 'curricullm' or 'openai'")
+    
+    # Default behavior: Prioritize general model (OpenAI) over curriculum model
+    if use_general:
+        # Use general model (prioritized)
+        general_provider = settings.general_model_provider.lower()
+        if general_provider == "openai" and openai_key:
+            model_name = model or settings.general_model or settings.openai_model
+            return OpenAI(api_key=openai_key), "openai", model_name
+        elif general_provider == "curricullm" and curricullm_key:
+            model_name = model or settings.general_model or settings.curricullm_model or settings.openai_model
+            return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "curricullm", model_name
+        # Fallback: try OpenAI if general provider not available
+        if openai_key:
+            model_name = model or settings.general_model or settings.openai_model
+            return OpenAI(api_key=openai_key), "openai", model_name
+        # Fallback: try CurricuLLM if OpenAI not available
+        if curricullm_key:
+            model_name = model or settings.general_model or settings.curricullm_model or settings.openai_model
+            return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "curricullm", model_name
     else:
-        raise ValueError("No LLM API key found. Set CURRICULLM_API_KEY or OPENAI_API_KEY")
+        # Use curriculum model
+        curriculum_provider = settings.curriculum_model_provider.lower()
+        if curriculum_provider == "curricullm" and curricullm_key:
+            model_name = model or settings.curriculum_model or settings.curricullm_model or settings.openai_model
+            return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "curricullm", model_name
+        elif curriculum_provider == "openai" and openai_key:
+            model_name = model or settings.curriculum_model or settings.openai_model
+            return OpenAI(api_key=openai_key), "openai", model_name
+        # Fallback: try CurricuLLM if curriculum provider not available
+        if curricullm_key:
+            model_name = model or settings.curriculum_model or settings.curricullm_model or settings.openai_model
+            return OpenAI(api_key=curricullm_key, base_url=curricullm_url), "curricullm", model_name
+        # Fallback: try OpenAI if CurricuLLM not available
+        if openai_key:
+            model_name = model or settings.curriculum_model or settings.openai_model
+            return OpenAI(api_key=openai_key), "openai", model_name
+    
+    raise ValueError("No LLM API key found. Set CURRICULLM_API_KEY or OPENAI_API_KEY")
 
 
-def generate_script(prompt: str) -> Dict[str, Any]:
+# Hardcoded LLM configuration for specific nodes/edges
+# Format: "node_name": {"provider": "openai"|"curricullm", "model": "model_name" or None, "use_curriculum": bool}
+# - provider: "openai" or "curricullm" (optional, overrides use_curriculum)
+# - model: Model name string (e.g., "gpt-4", "gpt-3.5-turbo") or None to use default for provider
+# - use_curriculum: If True, uses curriculum model. If False or not set, uses general model (default)
+# If node not in this dict, uses default behavior (prioritizes general model)
+#
+# Special nodes that automatically use curriculum model:
+# - "curriculum_agent": Uses curriculum model
+# - "script_generation": Uses curriculum model
+NODE_LLM_CONFIG = {
+    # Curriculum-specific nodes use curriculum model
+    "curriculum_agent": {"use_curriculum": True},
+    "script_generation": {"use_curriculum": True},
+    
+    # Other nodes can be customized here if needed:
+    # "conversation": {"provider": "openai", "model": None},  # Uses general model (default)
+    # "fact_checking": {"provider": "openai", "model": "gpt-4"},  # Uses specific model
+}
+
+
+def get_llm_client_for_node(node_name: str):
+    """
+    Get LLM client configured for a specific node.
+    
+    Args:
+        node_name: Name of the node (e.g., "conversation", "script_generation", "curriculum_agent")
+        
+    Returns:
+        Tuple of (client, provider_name, model_name)
+    """
+    # Check if there's a hardcoded configuration for this node
+    node_config = NODE_LLM_CONFIG.get(node_name)
+    
+    if node_config:
+        # If provider is explicitly set, use it
+        if "provider" in node_config:
+            provider = node_config.get("provider")
+            model = node_config.get("model")
+            return get_llm_client(provider=provider, model=model)
+        
+        # If use_curriculum is set, use curriculum model
+        if node_config.get("use_curriculum", False):
+            model = node_config.get("model")
+            return get_llm_client(provider=None, model=model, use_general=False)
+        
+        # Otherwise use general model with optional model override
+        model = node_config.get("model")
+        return get_llm_client(provider=None, model=model, use_general=True)
+    
+    # Default behavior: Use general model (prioritized)
+    return get_llm_client(use_general=True)
+
+
+def generate_script(prompt: str, node_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Generate script using LLM.
     
     Args:
         prompt: System prompt for script generation
+        node_name: Optional node name for node-specific LLM configuration
         
     Returns:
         Dictionary with script and scenes
     """
-    client, provider = get_llm_client()
+    if node_name:
+        client, provider, model = get_llm_client_for_node(node_name)
+    else:
+        client, provider, model = get_llm_client()
     
     try:
-        # Check for CurricuLLM model first, then OpenAI model
-        model = settings.curricullm_model or settings.openai_model
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -143,7 +255,8 @@ def _parse_scenes_from_script(script: str) -> List[Dict[str, Any]]:
 
 async def extract_information_from_message(
     message: str,
-    current_state: Dict[str, Any]
+    current_state: Dict[str, Any],
+    node_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Extract structured information from a natural language message.
@@ -151,11 +264,15 @@ async def extract_information_from_message(
     Args:
         message: User message
         current_state: Current session state
+        node_name: Optional node name for node-specific LLM configuration
         
     Returns:
         Dictionary with extracted fields
     """
-    client, provider = get_llm_client()
+    if node_name:
+        client, provider, model = get_llm_client_for_node(node_name)
+    else:
+        client, provider, model = get_llm_client()
     
     # Build prompt for information extraction
     prompt = f"""Extract structured information from the following educator message. 
@@ -174,8 +291,6 @@ Return JSON format: {{"topic": "...", "year_level": ..., "learning_objective": "
 Only include fields that have values."""
     
     try:
-        # Check for CurricuLLM model first, then OpenAI model
-        model = settings.curricullm_model or settings.openai_model
         messages_list = [
             {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
             {"role": "user", "content": prompt}
@@ -219,7 +334,8 @@ Only include fields that have values."""
 
 async def generate_conversation_response(
     state: Dict[str, Any],
-    missing_fields: List[str]
+    missing_fields: List[str],
+    node_name: Optional[str] = None
 ) -> str:
     """
     Generate a conversational response based on current state and missing fields.
@@ -227,11 +343,15 @@ async def generate_conversation_response(
     Args:
         state: Current session state
         missing_fields: List of missing required fields
+        node_name: Optional node name for node-specific LLM configuration
         
     Returns:
         Assistant response message
     """
-    client, provider = get_llm_client()
+    if node_name:
+        client, provider, model = get_llm_client_for_node(node_name)
+    else:
+        client, provider, model = get_llm_client()
     
     # Build context
     topic = state.get("topic", "Not specified")
@@ -257,8 +377,6 @@ Generate a friendly, helpful response that:
 Keep the response concise and friendly."""
     
     try:
-        # Check for CurricuLLM model first, then OpenAI model
-        model = settings.curricullm_model or settings.openai_model
         messages_list = [
             {"role": "system", "content": "You are a helpful educational assistant."},
             {"role": "user", "content": prompt}
