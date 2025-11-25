@@ -16,13 +16,13 @@ export default function ScriptOutput({ output }: ScriptOutputProps) {
         <div className="text-sm text-gray-600 mb-4">
           Level: Year {output.year_level} | Curriculum Codes: {output.curriculum.codes.join(', ') || 'N/A'}
         </div>
-        
-        <div className="prose max-w-none">
-          <h3 className="text-lg font-semibold mb-2">Learning Objective</h3>
-          <p className="text-gray-700 mb-6">{output.learning_objective}</p>
 
-          <h3 className="text-lg font-semibold mb-2">Script</h3>
-          <div className="bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-sm">
+        <div className="prose max-w-none">
+          <h3 className="text-lg font-semibold mb-2 text-gray-900">Learning Objective</h3>
+          <p className="text-gray-900 mb-6">{output.learning_objective}</p>
+
+          <h3 className="text-lg font-semibold mb-2 text-gray-900">Script</h3>
+          <div className="bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-sm text-gray-900">
             {output.script || 'No script generated'}
           </div>
         </div>

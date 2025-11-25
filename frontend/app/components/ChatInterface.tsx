@@ -39,7 +39,7 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
         setStatus(session.status);
         setCollectedData(session.collected_data);
         setMissingFields(session.missing_fields);
-        
+
         // Add welcome message
         setMessages([
           {
@@ -107,8 +107,8 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
         } else if (genStatus.status === 'failed') {
           setIsPolling(false);
           clearInterval(pollInterval);
-          const errorMsg = genStatus.errors.length > 0 
-            ? genStatus.errors.join(', ') 
+          const errorMsg = genStatus.errors.length > 0
+            ? genStatus.errors.join(', ')
             : 'Script generation failed. Please try again.';
           setError(errorMsg);
           setMessages((prev) => [
@@ -156,8 +156,27 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
       setMissingFields(response.missing_fields);
       setAgentActions(response.agent_actions);
 
+      // If script is already completed, fetch and display it immediately
+      if (response.status === 'completed') {
+        try {
+          const script = await getScript(sessionId);
+          if (onScriptReady) {
+            onScriptReady(script);
+          }
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Failed to retrieve script';
+          setError(errorMsg);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `I encountered an error retrieving the script: ${errorMsg}. Please try again.`,
+            },
+          ]);
+        }
+      }
       // Start polling if generating or in a state that requires polling
-      if (['generating', 'fact_checking', 'needs_refinement', 'script_generated'].includes(response.status)) {
+      else if (['generating', 'fact_checking', 'needs_refinement', 'script_generated'].includes(response.status)) {
         setIsPolling(true);
       }
     } catch (err) {
@@ -180,11 +199,10 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
       <div className="p-4 border-b bg-gray-50">
         <h2 className="text-xl font-bold text-gray-900">Chat with AI Assistant</h2>
         <div className="mt-2 flex items-center gap-4 text-sm">
-          <span className={`px-2 py-1 rounded ${
-            status === 'completed' ? 'bg-green-100 text-green-800' :
+          <span className={`px-2 py-1 rounded ${status === 'completed' ? 'bg-green-100 text-green-800' :
             status === 'generating' || status === 'fact_checking' ? 'bg-blue-100 text-blue-800' :
-            'bg-gray-100 text-gray-800'
-          }`}>
+              'bg-gray-100 text-gray-800'
+            }`}>
             {status.replace('_', ' ')}
           </span>
           {agentActions.length > 0 && (
@@ -198,8 +216,8 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
       {/* Collected Data Summary */}
       {(collectedData.topic || collectedData.year_level || collectedData.learning_objective) && (
         <div className="p-4 border-b bg-blue-50">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Collected Information:</h3>
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Collected Information:</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm text-gray-900">
             {collectedData.topic && (
               <div>
                 <span className="font-medium">Topic:</span> {collectedData.topic}
