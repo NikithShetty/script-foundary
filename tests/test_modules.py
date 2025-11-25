@@ -13,7 +13,7 @@ def test_curriculum_aligner():
     module = CurriculumAligner()
     context = PipelineContext(
         topic="photosynthesis",
-        year_level=5,
+        year_level="5",
         learning_objective="test",
     )
     config = PipelineConfig()
@@ -29,7 +29,7 @@ def test_misconception_checker():
     module = MisconceptionChecker()
     context = PipelineContext(
         topic="photosynthesis",
-        year_level=5,
+        year_level="5",
         learning_objective="test",
     )
     config = PipelineConfig()
@@ -45,7 +45,7 @@ def test_cultural_safety_checker():
     module = CulturalSafetyChecker()
     context = PipelineContext(
         topic="test",
-        year_level=5,
+        year_level="5",
         learning_objective="test",
         generated_script="This is a test script with normal content.",
     )
@@ -62,7 +62,7 @@ def test_accessibility_generator():
     module = AccessibilityGenerator()
     context = PipelineContext(
         topic="test",
-        year_level=5,
+        year_level="5",
         learning_objective="test",
         script_scenes=[
             {

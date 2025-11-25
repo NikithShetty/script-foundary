@@ -47,12 +47,12 @@ export default function ScriptInput({ onSubmit, isLoading }: ScriptInputProps) {
             Year Level *
           </label>
           <select
-            {...register('year_level', { required: 'Year level is required', valueAsNumber: true })}
+            {...register('year_level', { required: 'Year level is required' })}
             id="year_level"
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
           >
             {Array.from({ length: 12 }, (_, i) => i + 1).map((year) => (
-              <option key={year} value={year}>
+              <option key={year} value={year.toString()}>
                 Year {year}
               </option>
             ))}

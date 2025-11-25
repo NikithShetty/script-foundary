@@ -8,7 +8,7 @@ class ScriptInput(BaseModel):
     """Input model for script generation request."""
     
     topic: str = Field(..., description="The topic for the educational script")
-    year_level: int = Field(..., ge=1, le=12, description="Year level (1-12)")
+    year_level: str = Field(..., description="Year level (e.g., '1', '2', 'university level')")
     learning_objective: str = Field(..., description="Learning objective for the script")
     subject: Optional[str] = Field(None, description="Subject area (e.g., 'Science', 'Mathematics')")
     
@@ -37,7 +37,7 @@ class ScriptOutput(BaseModel):
     """Output model for generated script."""
     
     topic: str
-    year_level: int
+    year_level: str
     learning_objective: str
     script: str
     scenes: List[Scene]

@@ -25,7 +25,7 @@ class PipelineContext(BaseModel):
     
     # Input data
     topic: str
-    year_level: int
+    year_level: str
     learning_objective: str
     subject: Optional[str] = None
     

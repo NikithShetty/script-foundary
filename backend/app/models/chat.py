@@ -46,7 +46,7 @@ class ScriptResponse(BaseModel):
     """Model for script retrieval response."""
     session_id: str
     topic: str
-    year_level: int
+    year_level: str
     learning_objective: str
     script: str
     scenes: List[Dict[str, Any]]
@@ -72,7 +72,7 @@ class SessionSummary(BaseModel):
     """Model for session summary in list view."""
     session_id: str
     topic: Optional[str] = None
-    year_level: Optional[int] = None
+    year_level: Optional[str] = None
     subject: Optional[str] = None
     status: str
     created_at: Optional[datetime] = None

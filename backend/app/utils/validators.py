@@ -5,19 +5,15 @@ from typing import Any
 
 def validate_year_level(year_level: Any) -> bool:
     """
-    Validate year level is between 1 and 12.
+    Validate year level is a non-empty string.
     
     Args:
-        year_level: Year level to validate
+        year_level: Year level to validate (can be any string)
         
     Returns:
-        True if valid, False otherwise
+        True if valid (non-empty string), False otherwise
     """
-    try:
-        level = int(year_level)
-        return 1 <= level <= 12
-    except (ValueError, TypeError):
-        return False
+    return isinstance(year_level, str) and len(year_level.strip()) > 0
 
 
 def validate_topic(topic: Any) -> bool:

@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 def get_fame_prompt(
     topic: str,
-    year_level: int,
+    year_level: str,
     learning_objective: str,
     curriculum_codes: List[str] = None,
     misconceptions: List[Dict[str, Any]] = None,
@@ -15,7 +15,7 @@ def get_fame_prompt(
     
     Args:
         topic: Topic for the script
-        year_level: Year level (1-12)
+        year_level: Year level (can be string like "1", "2", "university level", etc.)
         learning_objective: Learning objective
         curriculum_codes: List of curriculum codes
         misconceptions: List of misconceptions to address
@@ -38,7 +38,7 @@ def get_fame_prompt(
     
     prompt = f"""You are an expert educational script writer. Generate a script for:
 Topic: {topic}
-Year Level: Year {year_level}
+Year Level: {year_level}
 Learning Objective: {learning_objective}
 {curriculum_text}
 Follow the FAME framework:

@@ -9,7 +9,7 @@ def test_pipeline_basic():
     """Test basic pipeline execution."""
     input_data = {
         "topic": "photosynthesis",
-        "year_level": 5,
+        "year_level": "5",
         "learning_objective": "Students will understand why plants need light and water",
         "subject": "Science",
     }
@@ -26,7 +26,7 @@ def test_pipeline_basic():
     context = run_pipeline(input_data, config)
     
     assert context.topic == "photosynthesis"
-    assert context.year_level == 5
+    assert context.year_level == "5"
     assert len(context.curriculum_outcomes) >= 0
     assert len(context.misconceptions) >= 0
 
@@ -35,13 +35,13 @@ def test_pipeline_context():
     """Test PipelineContext model."""
     context = PipelineContext(
         topic="test",
-        year_level=5,
+        year_level="5",
         learning_objective="test objective",
     )
     
     output = context.to_output()
     assert output["topic"] == "test"
-    assert output["year_level"] == 5
+    assert output["year_level"] == "5"
     assert "curriculum" in output
     assert "misconceptions" in output
 

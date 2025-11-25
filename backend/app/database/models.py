@@ -12,7 +12,7 @@ class Script(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     topic = Column(String(255), nullable=False)
-    year_level = Column(Integer, nullable=False)
+    year_level = Column(String(50), nullable=False)
     learning_objective = Column(Text, nullable=False)
     subject = Column(String(100))
     generated_script = Column(Text)
@@ -29,7 +29,7 @@ class CurriculumOutcome(Base):
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(50), unique=True, index=True)
     description = Column(Text)
-    year_level = Column(Integer)
+    year_level = Column(String(50))
     subject = Column(String(100))
     outcome_data = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -71,7 +71,7 @@ class PipelineRun(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     topic = Column(String(255))
-    year_level = Column(Integer)
+    year_level = Column(String(50))
     modules_executed = Column(JSON)
     success = Column(Integer, default=1)  # 0 = false, 1 = true
     errors = Column(JSON)

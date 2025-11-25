@@ -19,7 +19,7 @@ class SessionState(TypedDict):
     # Collected information (from educator)
     learning_objective: Optional[str]
     topic: Optional[str]
-    year_level: Optional[int]
+    year_level: Optional[str]
     subject: Optional[str]  # "Science", "Math", "English", etc.
     
     # Supporting information (from agents)

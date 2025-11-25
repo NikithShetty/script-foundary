@@ -8,13 +8,13 @@ from typing import Dict, Any, List, Optional
 CURRICULLM_API_URL = os.getenv("CURRICULLM_API_URL", "https://api.curricullm.com")
 
 
-def get_curriculum_outcomes(topic: str, year_level: int, subject: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_curriculum_outcomes(topic: str, year_level: str, subject: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Get curriculum outcomes for a topic and year level.
     
     Args:
         topic: Topic name
-        year_level: Year level (1-12)
+        year_level: Year level (can be string like "1", "2", "university level", etc.)
         subject: Optional subject area
         
     Returns:
@@ -59,7 +59,7 @@ def get_curriculum_outcomes(topic: str, year_level: int, subject: Optional[str] 
         return _get_mock_outcomes(topic, year_level, subject)
 
 
-def _get_mock_outcomes(topic: str, year_level: int, subject: Optional[str] = None) -> List[Dict[str, Any]]:
+def _get_mock_outcomes(topic: str, year_level: str, subject: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return mock curriculum outcomes when API is unavailable."""
     subject_code = (subject or "SCI")[:3].upper()
     
@@ -75,13 +75,13 @@ def _get_mock_outcomes(topic: str, year_level: int, subject: Optional[str] = Non
     ]
 
 
-def get_prerequisites(topic: str, year_level: int) -> List[str]:
+def get_prerequisites(topic: str, year_level: str) -> List[str]:
     """
     Get prerequisite knowledge for a topic.
     
     Args:
         topic: Topic name
-        year_level: Year level
+        year_level: Year level (can be string)
         
     Returns:
         List of prerequisite topics

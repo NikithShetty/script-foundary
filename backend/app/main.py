@@ -138,7 +138,7 @@ async def generate_script(input_data: ScriptInput):
     if not validate_year_level(input_data.year_level):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid year level: must be between 1 and 12",
+            detail="Invalid year level: must be a non-empty string",
         )
 
     if not validate_learning_objective(input_data.learning_objective):
@@ -191,13 +191,13 @@ async def generate_script(input_data: ScriptInput):
 
 
 @app.get("/api/v1/curriculum/search")
-async def search_curriculum(topic: str, year_level: int, subject: str = None):
+async def search_curriculum(topic: str, year_level: str, subject: str = None):
     """
     Search curriculum outcomes for a topic.
 
     Args:
         topic: Topic to search for
-        year_level: Year level
+        year_level: Year level (can be string)
         subject: Optional subject area
 
     Returns:
@@ -621,7 +621,7 @@ async def get_script(session_id: str):
         return ScriptResponse(
             session_id=session_id,
             topic=state.get("topic", ""),
-            year_level=state.get("year_level", 0),
+            year_level=state.get("year_level", ""),
             learning_objective=state.get("learning_objective", ""),
             script=script,
             scenes=state.get("script_scenes", []),

@@ -4,7 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface ScriptInput {
   topic: string;
-  year_level: number;
+  year_level: string;
   learning_objective: string;
   subject?: string;
   enable_curriculum_aligner?: boolean;
@@ -27,7 +27,7 @@ export interface Scene {
 
 export interface ScriptOutput {
   topic: string;
-  year_level: number;
+  year_level: string;
   learning_objective: string;
   script: string;
   scenes: Scene[];
@@ -76,10 +76,10 @@ export async function generateScript(input: ScriptInput): Promise<ScriptOutput> 
   return response.json();
 }
 
-export async function searchCurriculum(topic: string, yearLevel: number, subject?: string) {
+export async function searchCurriculum(topic: string, yearLevel: string, subject?: string) {
   const params = new URLSearchParams({
     topic,
-    year_level: yearLevel.toString(),
+    year_level: yearLevel,
   });
   if (subject) {
     params.append('subject', subject);
@@ -136,7 +136,7 @@ export interface ChatResponse {
   session_id: string;
   collected_data: {
     topic?: string | null;
-    year_level?: number | null;
+    year_level?: string | null;
     learning_objective?: string | null;
     subject?: string | null;
   };
@@ -151,7 +151,7 @@ export interface SessionStatus {
   status: string;
   collected_data: {
     topic?: string | null;
-    year_level?: number | null;
+    year_level?: string | null;
     learning_objective?: string | null;
     subject?: string | null;
   };
@@ -172,7 +172,7 @@ export interface SessionStatus {
 export interface ScriptResponse {
   session_id: string;
   topic: string;
-  year_level: number;
+  year_level: string;
   learning_objective: string;
   script: string;
   scenes: Scene[];
@@ -208,7 +208,7 @@ export interface GenerationStatus {
 export interface SessionSummary {
   session_id: string;
   topic?: string | null;
-  year_level?: number | null;
+  year_level?: string | null;
   subject?: string | null;
   status: string;
   created_at?: string | null;
