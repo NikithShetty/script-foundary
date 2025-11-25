@@ -93,6 +93,24 @@ Learning Objective: {learning_objective}
             prompt = self.build_prompt(context)
             system_prompt = self.get_system_prompt()
             
+            # Log before call
+            logger.info("=" * 80)
+            logger.info(f"[LLM CALL] Script Generation - {self.__class__.__name__}")
+            logger.info("=" * 80)
+            logger.info(f"Model: {self.model}")
+            logger.info(f"Temperature: 0.7")
+            logger.info(f"Max Tokens: 4000")
+            logger.info("\n--- SYSTEM PROMPT ---")
+            system_preview = system_prompt[:500] if len(system_prompt) > 500 else system_prompt
+            logger.info(f"{system_preview}")
+            if len(system_prompt) > 500:
+                logger.info(f"... (truncated, total length: {len(system_prompt)} chars)")
+            logger.info("\n--- USER PROMPT ---")
+            prompt_preview = prompt[:1000] if len(prompt) > 1000 else prompt
+            logger.info(f"{prompt_preview}")
+            if len(prompt) > 1000:
+                logger.info(f"... (truncated, total length: {len(prompt)} chars)")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -103,6 +121,14 @@ Learning Objective: {learning_objective}
                 max_tokens=4000,
             )
             content = response.choices[0].message.content
+            
+            # Log response
+            logger.info("\n--- RESPONSE ---")
+            response_preview = content[:2000] if len(content) > 2000 else content
+            logger.info(f"{response_preview}")
+            if len(content) > 2000:
+                logger.info(f"... (truncated, total length: {len(content)} chars)")
+            logger.info("=" * 80)
             
             # Parse scenes from script
             scenes = self._parse_scenes_from_script(content)

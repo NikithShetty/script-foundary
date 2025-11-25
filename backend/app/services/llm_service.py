@@ -1,9 +1,34 @@
 """LLM service for script generation using CurricuLLM or OpenAI."""
 
 import os
+import logging
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def log_llm_call(function_name: str, messages: list, model: str, response_content: str, **kwargs):
+    """Log LLM call details."""
+    logger.info("=" * 80)
+    logger.info(f"[LLM CALL] {function_name}")
+    logger.info("=" * 80)
+    logger.info(f"Model: {model}")
+    logger.info(f"Temperature: {kwargs.get('temperature', 'N/A')}")
+    logger.info(f"Max Tokens: {kwargs.get('max_tokens', 'N/A')}")
+    logger.info("\n--- REQUEST ---")
+    for msg in messages:
+        content_preview = msg['content'][:500] if len(msg['content']) > 500 else msg['content']
+        logger.info(f"{msg['role'].upper()}: {content_preview}")
+        if len(msg['content']) > 500:
+            logger.info(f"  ... (truncated, total length: {len(msg['content'])} chars)")
+    logger.info("\n--- RESPONSE ---")
+    response_preview = response_content[:1000] if len(response_content) > 1000 else response_content
+    logger.info(f"{response_preview}")
+    if len(response_content) > 1000:
+        logger.info(f"... (truncated, total length: {len(response_content)} chars)")
+    logger.info("=" * 80)
 
 
 def get_llm_client():
@@ -151,16 +176,27 @@ Only include fields that have values."""
     try:
         # Check for CurricuLLM model first, then OpenAI model
         model = settings.curricullm_model or settings.openai_model
+        messages_list = [
+            {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
+            {"role": "user", "content": prompt}
+        ]
         response = client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system", "content": "You are an information extraction assistant. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages_list,
             temperature=0.3,
             max_tokens=500,
         )
         content = response.choices[0].message.content
+        
+        # Log LLM call
+        log_llm_call(
+            "extract_information_from_message",
+            messages_list,
+            model,
+            content,
+            temperature=0.3,
+            max_tokens=500
+        )
         
         # Parse JSON response
         import json
@@ -223,16 +259,27 @@ Keep the response concise and friendly."""
     try:
         # Check for CurricuLLM model first, then OpenAI model
         model = settings.curricullm_model or settings.openai_model
+        messages_list = [
+            {"role": "system", "content": "You are a helpful educational assistant."},
+            {"role": "user", "content": prompt}
+        ]
         response = client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful educational assistant."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages_list,
             temperature=0.7,
             max_tokens=300,
         )
         content = response.choices[0].message.content
+        
+        # Log LLM call
+        log_llm_call(
+            "generate_conversation_response",
+            messages_list,
+            model,
+            content,
+            temperature=0.7,
+            max_tokens=300
+        )
         
         return content
     except Exception as e:

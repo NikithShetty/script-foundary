@@ -38,6 +38,12 @@ from typing import Any
 logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
 
+# Enable detailed logging for LangChain/LangGraph in debug mode
+if settings.debug:
+    logging.getLogger("langchain").setLevel(logging.DEBUG)
+    logging.getLogger("langgraph").setLevel(logging.DEBUG)
+    logging.getLogger("openai").setLevel(logging.INFO)  # OpenAI SDK logs
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Educational Script Generator API",
@@ -342,7 +348,57 @@ async def send_message(session_id: str, request: ChatRequest):
             "configurable": {"thread_id": session_id},
             "recursion_limit": settings.graph_recursion_limit
         }
-        result = await workflow.ainvoke(state, config)
+        
+        # Use astream_events to capture all LLM calls and decisions in debug mode
+        if settings.debug:
+            logger.info("\n" + "=" * 80)
+            logger.info("[LANGGRAPH] Starting workflow execution")
+            logger.info("=" * 80)
+            
+            # Stream events to capture LLM calls
+            async for event in workflow.astream_events(state, config, version="v2"):
+                event_type = event.get("event")
+                event_name = event.get("name", "")
+                
+                # Log LLM invocations
+                if event_type == "on_chat_model_start":
+                    logger.info(f"\n[LANGGRAPH] LLM Call Starting: {event_name}")
+                    if "data" in event and "input" in event["data"]:
+                        messages = event["data"]["input"].get("messages", [])
+                        logger.info(f"  Messages: {len(messages)} message(s)")
+                        for msg in messages:
+                            if hasattr(msg, 'content'):
+                                content_preview = str(msg.content)[:200]
+                                logger.info(f"    {msg.__class__.__name__}: {content_preview}...")
+                
+                elif event_type == "on_chat_model_end":
+                    logger.info(f"[LANGGRAPH] LLM Call Completed: {event_name}")
+                    if "data" in event and "output" in event["data"]:
+                        output = event["data"]["output"]
+                        if hasattr(output, 'content'):
+                            response_preview = str(output.content)[:500]
+                            logger.info(f"  Response: {response_preview}...")
+                
+                elif event_type == "on_chat_model_error":
+                    logger.error(f"[LANGGRAPH] LLM Call Error: {event_name}")
+                    if "error" in event:
+                        logger.error(f"  Error: {event['error']}")
+                
+                # Log node execution
+                elif event_type == "on_chain_start":
+                    if "LangGraph" not in event_name and "Runnable" not in event_name:
+                        logger.info(f"\n[LANGGRAPH] Node Starting: {event_name}")
+                
+                elif event_type == "on_chain_end":
+                    if "LangGraph" not in event_name and "Runnable" not in event_name:
+                        logger.info(f"[LANGGRAPH] Node Completed: {event_name}")
+            
+            # Get final result
+            result = await workflow.ainvoke(state, config)
+            logger.info("\n[LANGGRAPH] Workflow execution completed")
+            logger.info("=" * 80)
+        else:
+            result = await workflow.ainvoke(state, config)
         
         # Save updated state
         await store_session(session_id, result)
@@ -598,6 +654,119 @@ def _get_current_agent(state: dict) -> str:
         return "fact_checker_agent"
     else:
         return "orchestrator_agent"
+
+
+@app.post("/api/v1/debug/workflow/trace")
+async def debug_workflow_trace(session_id: str, request: ChatRequest):
+    """
+    Debug endpoint that returns full trace of LLM calls and decisions.
+    
+    Args:
+        session_id: Session identifier
+        request: Chat request with message
+        
+    Returns:
+        Complete trace with LLM calls, node executions, and decisions
+    """
+    try:
+        state = await load_session(session_id)
+        if not state:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        state["user_input"] = request.message
+        config = {
+            "configurable": {"thread_id": session_id},
+            "recursion_limit": settings.graph_recursion_limit
+        }
+        
+        trace = {
+            "llm_calls": [],
+            "node_executions": [],
+            "decisions": [],
+            "final_state": None
+        }
+        
+        async for event in workflow.astream_events(state, config, version="v2"):
+            event_type = event.get("event")
+            event_name = event.get("name", "")
+            
+            # Capture LLM calls
+            if event_type == "on_chat_model_start":
+                llm_call = {
+                    "type": "start",
+                    "name": event_name,
+                    "input": {
+                        "messages": []
+                    },
+                    "model": "unknown",
+                    "timestamp": event.get("metadata", {}).get("ls_timestamp")
+                }
+                
+                if "data" in event and "input" in event["data"]:
+                    input_data = event["data"]["input"]
+                    messages = input_data.get("messages", [])
+                    llm_call["model"] = input_data.get("model", "unknown")
+                    for msg in messages:
+                        if hasattr(msg, 'content'):
+                            llm_call["input"]["messages"].append({
+                                "type": type(msg).__name__,
+                                "content": str(msg.content)[:500]
+                            })
+                
+                trace["llm_calls"].append(llm_call)
+            
+            elif event_type == "on_chat_model_end":
+                # Find matching start event
+                for call in reversed(trace["llm_calls"]):
+                    if call.get("name") == event_name and call.get("type") == "start":
+                        call["type"] = "complete"
+                        if "data" in event and "output" in event["data"]:
+                            output = event["data"]["output"]
+                            if hasattr(output, 'content'):
+                                call["response"] = str(output.content)[:1000]
+                        break
+            
+            # Capture node executions
+            elif event_type == "on_chain_start":
+                if "LangGraph" not in event_name and "Runnable" not in event_name:
+                    trace["node_executions"].append({
+                        "node": event_name,
+                        "status": "started",
+                        "timestamp": event.get("metadata", {}).get("ls_timestamp")
+                    })
+            
+            elif event_type == "on_chain_end":
+                if "LangGraph" not in event_name and "Runnable" not in event_name:
+                    for node in reversed(trace["node_executions"]):
+                        if node.get("node") == event_name and node.get("status") == "started":
+                            node["status"] = "completed"
+                            break
+        
+        # Get final result
+        result = await workflow.ainvoke(state, config)
+        await store_session(session_id, result)
+        
+        trace["final_state"] = {
+            "status": result.get("status"),
+            "errors": result.get("errors", []),
+            "warnings": result.get("warnings", []),
+            "ready_to_generate": result.get("ready_to_generate", False),
+            "needs_refinement": result.get("needs_refinement", False),
+            "confidence_score": result.get("confidence_score")
+        }
+        
+        return trace
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in debug trace: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate trace: {str(e)}"
+        )
 
 
 @app.exception_handler(Exception)
