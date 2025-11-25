@@ -205,6 +205,16 @@ export interface GenerationStatus {
   warnings: string[];
 }
 
+export interface SessionSummary {
+  session_id: string;
+  topic?: string | null;
+  year_level?: number | null;
+  subject?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 /**
  * Create a new conversation session.
  */
@@ -286,6 +296,20 @@ export async function getGenerationStatus(sessionId: string): Promise<Generation
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to get generation status');
+  }
+
+  return response.json();
+}
+
+/**
+ * List all previous sessions.
+ */
+export async function listSessions(): Promise<SessionSummary[]> {
+  const response = await fetch(`${API_URL}/api/v1/chat/sessions`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to list sessions');
   }
 
   return response.json();

@@ -15,10 +15,11 @@ import {
 
 interface ChatInterfaceProps {
   onScriptReady?: (script: ScriptResponse) => void;
+  initialSessionId?: string | null;
 }
 
-export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+export default function ChatInterface({ onScriptReady, initialSessionId }: ChatInterfaceProps) {
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,30 +31,60 @@ export default function ChatInterface({ onScriptReady }: ChatInterfaceProps) {
   const [isPolling, setIsPolling] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize session on mount
+  // Initialize session on mount or when initialSessionId changes
   useEffect(() => {
     const initSession = async () => {
       try {
-        const session = await createSession();
-        setSessionId(session.session_id);
-        setStatus(session.status);
-        setCollectedData(session.collected_data);
-        setMissingFields(session.missing_fields);
+        if (initialSessionId) {
+          // Load existing session
+          const session = await getSession(initialSessionId);
+          setSessionId(session.session_id);
+          setStatus(session.status);
+          setCollectedData(session.collected_data);
+          setMissingFields(session.missing_fields);
+          
+          // Load conversation history
+          const history = session.conversation_history || [];
+          setMessages(history.map(msg => ({
+            role: msg.role === 'human' ? 'user' : 'assistant',
+            content: msg.content,
+          })));
 
-        // Add welcome message
-        setMessages([
-          {
-            role: 'assistant',
-            content: "Hello! I'm here to help you create an educational video script. Let's start by gathering some information. What topic would you like to create a script about?",
-          },
-        ]);
+          // If script is already completed, fetch it
+          if (session.status === 'completed') {
+            try {
+              const script = await getScript(initialSessionId);
+              if (onScriptReady) {
+                onScriptReady(script);
+              }
+            } catch (err) {
+              console.error('Error loading script:', err);
+            }
+          }
+        } else {
+          // Create new session
+          const session = await createSession();
+          setSessionId(session.session_id);
+          setStatus(session.status);
+          setCollectedData(session.collected_data);
+          setMissingFields(session.missing_fields);
+
+          // Add welcome message
+          setMessages([
+            {
+              role: 'assistant',
+              content: "Hello! I'm here to help you create an educational video script. Let's start by gathering some information. What topic would you like to create a script about?",
+            },
+          ]);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize session');
       }
     };
 
     initSession();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSessionId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

@@ -12,6 +12,7 @@ from app.models.chat import (
     ScriptResponse,
     GenerationStatus,
     AgentAction,
+    SessionSummary,
 )
 from app.pipeline.core import run_pipeline
 from app.config import settings, get_pipeline_config_from_settings
@@ -26,13 +27,14 @@ from app.services.session_storage import (
     load_session,
     delete_session,
     create_initial_state,
+    list_sessions,
 )
 from app.agents.nodes import identify_missing_fields
 import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, List
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -283,6 +285,25 @@ async def fact_check_text(request: dict):
 # ============================================================================
 # Chat Session Endpoints
 # ============================================================================
+
+
+@app.get("/api/v1/chat/sessions", response_model=List[SessionSummary])
+async def list_all_sessions():
+    """
+    List all previous sessions.
+
+    Returns:
+        List of session summaries
+    """
+    try:
+        sessions = await list_sessions()
+        return [SessionSummary(**session) for session in sessions]
+    except Exception as e:
+        logger.error(f"Error listing sessions: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list sessions: {str(e)}",
+        )
 
 
 @app.post("/api/v1/chat/sessions", response_model=SessionStatus)

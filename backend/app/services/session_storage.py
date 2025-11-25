@@ -87,10 +87,21 @@ async def store_session(session_id: str, state: SessionState) -> None:
             )
         else:
             # Store in memory
-            _in_memory_storage[session_id] = {
-                "state": state_json,
-                "expires_at": datetime.now() + _session_ttl
-            }
+            now = datetime.now()
+            if session_id not in _in_memory_storage:
+                # New session, store creation time
+                _in_memory_storage[session_id] = {
+                    "state": state_json,
+                    "expires_at": now + _session_ttl,
+                    "created_at": now,
+                }
+            else:
+                # Update existing session
+                existing = _in_memory_storage[session_id]
+                existing["state"] = state_json
+                existing["expires_at"] = now + _session_ttl
+                if "created_at" not in existing:
+                    existing["created_at"] = now
             # Clean up expired sessions
             _cleanup_expired_sessions()
         
@@ -147,6 +158,59 @@ def _cleanup_expired_sessions() -> None:
     ]
     for key in expired_keys:
         del _in_memory_storage[key]
+
+
+async def list_sessions() -> list[Dict[str, Any]]:
+    """List all sessions with summary information."""
+    try:
+        sessions = []
+        
+        if redis_client:
+            # Get all session keys from Redis
+            keys = redis_client.keys("session:*")
+            for key in keys:
+                session_id = key.replace("session:", "")
+                state_json = redis_client.get(key)
+                if state_json:
+                    try:
+                        state = _deserialize_state(state_json)
+                        # Extract summary information
+                        sessions.append({
+                            "session_id": session_id,
+                            "topic": state.get("topic"),
+                            "year_level": state.get("year_level"),
+                            "subject": state.get("subject"),
+                            "status": state.get("status", "unknown"),
+                            "created_at": datetime.now(),  # Redis doesn't store creation time
+                            "updated_at": datetime.now(),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error parsing session {session_id}: {e}")
+        else:
+            # List from in-memory storage
+            now = datetime.now()
+            for session_id, session_data in _in_memory_storage.items():
+                if now < session_data["expires_at"]:
+                    try:
+                        state = _deserialize_state(session_data["state"])
+                        sessions.append({
+                            "session_id": session_id,
+                            "topic": state.get("topic"),
+                            "year_level": state.get("year_level"),
+                            "subject": state.get("subject"),
+                            "status": state.get("status", "unknown"),
+                            "created_at": session_data.get("created_at", datetime.now()),
+                            "updated_at": session_data.get("expires_at", datetime.now()) - _session_ttl,
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error parsing session {session_id}: {e}")
+        
+        # Sort by updated_at descending (most recent first)
+        sessions.sort(key=lambda x: x.get("updated_at", datetime.min), reverse=True)
+        return sessions
+    except Exception as e:
+        logger.error(f"Error listing sessions: {str(e)}", exc_info=True)
+        return []
 
 
 def create_initial_state(session_id: str) -> SessionState:

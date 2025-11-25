@@ -67,3 +67,14 @@ class GenerationStatus(BaseModel):
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 
+
+class SessionSummary(BaseModel):
+    """Model for session summary in list view."""
+    session_id: str
+    topic: Optional[str] = None
+    year_level: Optional[int] = None
+    subject: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+

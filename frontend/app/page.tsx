@@ -3,19 +3,40 @@
 import { useState } from 'react';
 import ChatInterface from './components/ChatInterface';
 import ScriptOutputFromChat from './components/ScriptOutputFromChat';
+import SessionsSidebar from './components/SessionsSidebar';
 import { ScriptResponse } from '@/lib/api';
 
 export default function Home() {
   const [script, setScript] = useState<ScriptResponse | null>(null);
   const [viewMode, setViewMode] = useState<'chat' | 'script'>('chat');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const handleScriptReady = (scriptResponse: ScriptResponse) => {
     setScript(scriptResponse);
     setViewMode('script');
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    setCurrentSessionId(sessionId);
+    setSidebarOpen(false);
+    // Reset script when switching sessions
+    setScript(null);
+    setViewMode('chat');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Sessions Sidebar */}
+      <SessionsSidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onSelectSession={handleSelectSession}
+        currentSessionId={currentSessionId}
+      />
+
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -55,7 +76,10 @@ export default function Home() {
           {/* Chat Interface - Always visible on left */}
           <div className={`lg:col-span-1 ${viewMode === 'script' ? 'hidden lg:block' : ''}`}>
             <div className="lg:sticky lg:top-4" style={{ height: viewMode === 'chat' ? 'calc(100vh - 8rem)' : 'auto' }}>
-              <ChatInterface onScriptReady={handleScriptReady} />
+              <ChatInterface 
+                onScriptReady={handleScriptReady} 
+                initialSessionId={selectedSessionId}
+              />
             </div>
           </div>
 
