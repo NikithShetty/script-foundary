@@ -44,6 +44,34 @@ def check_if_ready_to_generate(state: SessionState) -> str:
     return decision
 
 
+def check_after_conversation(state: SessionState) -> str:
+    """
+    Determine next step after conversation node.
+    If we still need more info, end workflow to return response to user.
+    If we have all required info, continue to information gathering.
+    Returns: "end" | "continue"
+    """
+    required_fields = ["topic", "year_level", "learning_objective"]
+    all_present = all(state.get(field) for field in required_fields)
+    
+    logger.info("\n" + "=" * 80)
+    logger.info("[DECISION] check_after_conversation")
+    logger.info(f"  Topic: {state.get('topic')}")
+    logger.info(f"  Year Level: {state.get('year_level')}")
+    logger.info(f"  Learning Objective: {state.get('learning_objective')}")
+    
+    if all_present:
+        decision = "continue"
+        logger.info(f"  → DECISION: {decision} (all required fields present, continue to information gathering)")
+    else:
+        decision = "end"
+        missing = [f for f in required_fields if not state.get(f)]
+        logger.info(f"  → DECISION: {decision} (missing fields: {missing}, return to user)")
+    
+    logger.info("=" * 80)
+    return decision
+
+
 def check_fact_check_results(state: SessionState) -> str:
     """
     Determine if script needs refinement based on fact-check results.

@@ -10,6 +10,7 @@ from app.agents.nodes import (
     fact_checking_node,
 )
 from app.agents.conditions import (
+    check_after_conversation,
     check_if_ready_to_generate,
     check_fact_check_results,
 )
@@ -31,8 +32,17 @@ def create_script_generation_workflow():
     # Set entry point
     workflow.set_entry_point("conversation")
     
+    # Conditional edge: Conversation → Check if we need more info or can continue
+    workflow.add_conditional_edges(
+        "conversation",
+        check_after_conversation,
+        {
+            "end": END,  # Missing required info, return to user
+            "continue": "information_gathering"  # All required info present, continue
+        }
+    )
+    
     # Sequential edges
-    workflow.add_edge("conversation", "information_gathering")
     workflow.add_edge("curriculum_agent", "information_gathering")
     workflow.add_edge("script_generation", "fact_checking")
     

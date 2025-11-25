@@ -46,7 +46,7 @@ if settings.debug:
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Educational Script Generator API",
+    title="Script Foundary API",
     description="Evidence-based educational script generation with curriculum alignment",
     version="1.0.0",
 )

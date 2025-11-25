@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Educational Script Generator",
+  title: "Script Foundary",
   description: "Evidence-based educational script generation with curriculum alignment",
 };
 
