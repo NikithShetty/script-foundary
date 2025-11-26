@@ -243,7 +243,7 @@ export function renderParsedScript(elements: ParsedScriptElement[]): React.React
         );
 
       case 'heading':
-        const HeadingTag = `h${Math.min(element.level || 2, 6)}` as keyof JSX.IntrinsicElements;
+        const HeadingTag = `h${Math.min(element.level || 2, 6)}` as keyof React.JSX.IntrinsicElements;
         const headingClasses = {
           1: 'text-2xl font-bold text-gray-900 mt-6 mb-3',
           2: 'text-xl font-bold text-gray-800 mt-5 mb-3',
