@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = True
     log_level: str = "INFO"
+    session_ttl_hours: int = 24  # Session TTL in hours (default: 24 hours)
     
     # CORS - reads from ALLOWED_ORIGINS environment variable
     # Supports single endpoint or comma-separated list
