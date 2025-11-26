@@ -241,6 +241,8 @@ def create_initial_state(session_id: str) -> SessionState:
         "ready_to_generate": False,
         "needs_refinement": False,
         "max_refinement_iterations": 3,
+        "is_modification_request": False,
+        "modification_request": None,
         "errors": [],
         "warnings": [],
         "metadata": {},

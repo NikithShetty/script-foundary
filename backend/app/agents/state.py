@@ -43,6 +43,8 @@ class SessionState(TypedDict):
     ready_to_generate: bool
     needs_refinement: bool
     max_refinement_iterations: int  # Default: 3
+    is_modification_request: bool  # Track user-requested modifications
+    modification_request: Optional[str]  # Store the user's change request text
     
     # Error handling
     errors: List[str]

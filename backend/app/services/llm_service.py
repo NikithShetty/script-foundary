@@ -309,6 +309,92 @@ def _parse_scenes_from_script(script: str) -> List[Dict[str, Any]]:
     return scenes
 
 
+async def detect_modification_intent(
+    message: str, has_existing_script: bool, node_name: Optional[str] = None
+) -> bool:
+    """
+    Detect if user message indicates a modification request for an existing script.
+    
+    Args:
+        message: User message
+        has_existing_script: Whether a script already exists in the session
+        node_name: Optional node name for node-specific LLM configuration
+    
+    Returns:
+        Boolean indicating if this is a modification request
+    """
+    if not has_existing_script:
+        return False
+    
+    if node_name:
+        client, provider, model = get_llm_client_for_node(node_name)
+    else:
+        client, provider, model = get_llm_client()
+    
+    prompt = f"""Analyze the following user message to determine if it indicates a request to modify or change an existing educational script.
+
+User message: {message}
+
+Consider the following as indicators of modification intent:
+- Requests to change, modify, update, revise, or edit the script
+- Requests to make it shorter, longer, simpler, more detailed
+- Requests to add, remove, or change specific content
+- Requests to change tone, style, or approach
+- Requests to fix or correct something
+- Any other indication that the user wants to alter the existing script
+
+If the message is asking for a new script or providing new information for initial script creation, it is NOT a modification request.
+
+Return only a JSON object with a single boolean field "is_modification_request".
+Example: {{"is_modification_request": true}} or {{"is_modification_request": false}}"""
+
+    try:
+        messages_list = [
+            {
+                "role": "system",
+                "content": "You are an intent detection assistant. Return only valid JSON.",
+            },
+            {"role": "user", "content": prompt},
+        ]
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages_list,
+            temperature=0.3,
+            max_tokens=200,
+        )
+        content = response.choices[0].message.content
+        
+        # Log LLM call
+        log_llm_call(
+            "detect_modification_intent",
+            messages_list,
+            model,
+            content,
+            temperature=0.3,
+            max_tokens=200,
+        )
+        
+        # Parse JSON response
+        import json
+        
+        # Try to extract JSON from response
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        result = json.loads(content)
+        return result.get("is_modification_request", False)
+    except Exception as e:
+        logger.error(f"Error detecting modification intent: {str(e)}", exc_info=True)
+        # On error, return False to be safe (don't treat as modification)
+        return False
+
+
 async def extract_information_from_message(
     message: str, current_state: Dict[str, Any], node_name: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -420,8 +506,30 @@ async def generate_conversation_response(
     year_level = state.get("year_level", "Not specified")
     learning_objective = state.get("learning_objective", "Not specified")
     subject = state.get("subject", "Not specified")
+    is_modification_request = state.get("is_modification_request", False)
+    modification_request = state.get("modification_request", "")
+    has_existing_script = bool(state.get("script")) and state.get("status") == "completed"
 
-    prompt = f"""You are a helpful educational assistant helping an educator create an educational video script.
+    # Handle modification requests
+    if is_modification_request and has_existing_script:
+        prompt = f"""You are a helpful educational assistant. The user has requested to modify an existing script.
+
+User's modification request: {modification_request}
+
+Current script information:
+- Topic: {topic}
+- Year Level: {year_level}
+- Learning Objective: {learning_objective}
+- Subject: {subject}
+
+Generate a friendly, helpful response that:
+1. Acknowledges the modification request
+2. Confirms that you will update the script according to their request
+3. Indicates that the script will be regenerated and fact-checked
+
+Keep the response concise and friendly."""
+    else:
+        prompt = f"""You are a helpful educational assistant helping an educator create an educational video script.
 
 Current information collected:
 - Topic: {topic}

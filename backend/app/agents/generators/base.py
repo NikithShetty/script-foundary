@@ -40,7 +40,61 @@ class BaseScriptGenerator(ABC):
         misconceptions = context.get("misconceptions", [])
         fact_check_issues = context.get("fact_check_issues", [])
         low_confidence_claims = context.get("low_confidence_claims", [])
+        is_modification = context.get("is_modification", False)
+        existing_script = context.get("existing_script", "")
+        modification_request = context.get("modification_request", "")
         
+        # Handle modification requests
+        if is_modification and existing_script:
+            prompt = f"""You are modifying an existing educational video script based on user feedback.
+
+EXISTING SCRIPT:
+{existing_script}
+
+USER'S MODIFICATION REQUEST:
+{modification_request}
+
+Original Requirements:
+- Topic: {topic}
+- Year Level: {year_level}
+- Subject: {subject}
+- Learning Objective: {learning_objective}
+
+"""
+            
+            if curriculum_outcomes:
+                prompt += "Curriculum Outcomes:\n"
+                for outcome in curriculum_outcomes:
+                    code = outcome.get("code", "")
+                    desc = outcome.get("description", "")
+                    prompt += f"- {code}: {desc}\n"
+                prompt += "\n"
+            
+            if curriculum_codes:
+                prompt += f"Curriculum Codes: {', '.join(curriculum_codes)}\n\n"
+            
+            if misconceptions:
+                prompt += "Common Misconceptions to Address:\n"
+                for misc in misconceptions:
+                    if isinstance(misc, dict):
+                        prompt += f"- {misc.get('misconception', misc)}\n"
+                    else:
+                        prompt += f"- {misc}\n"
+                prompt += "\n"
+            
+            prompt += self.get_system_prompt()
+            prompt += "\n\nINSTRUCTIONS FOR MODIFICATION:\n"
+            prompt += "1. Carefully review the existing script above\n"
+            prompt += "2. Understand the user's modification request\n"
+            prompt += "3. Modify the script according to the request, preserving what should remain unchanged\n"
+            prompt += "4. Ensure the modified script still meets all original requirements (topic, year level, learning objective, curriculum alignment)\n"
+            prompt += "5. Maintain the same format and structure unless the modification request specifically asks to change it\n"
+            prompt += "6. Generate the complete modified script (not just the changes)\n\n"
+            prompt += "Generate the modified educational script that addresses the user's request while maintaining quality, accuracy, and curriculum alignment."
+            
+            return prompt
+        
+        # Original generation prompt
         prompt = f"""Generate an educational video script with the following requirements:
 
 Topic: {topic}

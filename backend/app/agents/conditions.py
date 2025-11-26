@@ -11,16 +11,19 @@ def check_readiness(state: SessionState) -> str:
     Unified function to check if we're ready to proceed to script generation.
     Used after both conversation and curriculum_agent nodes.
 
-    Returns: "continue_conversation" | "gather_curriculum" | "ready"
+    Returns: "continue_conversation" | "gather_curriculum" | "ready" | "modify_script"
 
     Note: The workflow handles context-specific routing:
     - After conversation: "continue_conversation" → END (return to user)
     - After curriculum_agent: "continue_conversation" → conversation (loop back)
+    - "modify_script" → script_generation (for user-requested modifications)
     """
     topic = state.get("topic")
     year_level = state.get("year_level")
     learning_objective = state.get("learning_objective")
     curriculum_outcomes = state.get("curriculum_outcomes", [])
+    is_modification_request = state.get("is_modification_request", False)
+    existing_script = state.get("script")
 
     logger.info("\n" + "=" * 80)
     logger.info("[DECISION] check_readiness")
@@ -28,6 +31,15 @@ def check_readiness(state: SessionState) -> str:
     logger.info(f"  Year Level: {year_level}")
     logger.info(f"  Learning Objective: {learning_objective}")
     logger.info(f"  Has Curriculum: {len(curriculum_outcomes) > 0}")
+    logger.info(f"  Is Modification Request: {is_modification_request}")
+    logger.info(f"  Has Existing Script: {bool(existing_script)}")
+
+    # Check if this is a modification request
+    if is_modification_request and existing_script:
+        decision = "modify_script"
+        logger.info(f"  → DECISION: {decision} (user requested script modification)")
+        logger.info("=" * 80)
+        return decision
 
     # Check if we have topic and year_level but no curriculum
     if topic and year_level and not curriculum_outcomes:

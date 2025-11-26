@@ -6,6 +6,7 @@ from app.agents.state import SessionState
 from app.services.llm_service import (
     extract_information_from_message,
     generate_conversation_response,
+    detect_modification_intent,
 )
 from app.services.curriculum_api import get_curriculum_outcomes, get_prerequisites
 from app.services.fact_check_service import extract_factual_claims, check_fact
@@ -114,6 +115,28 @@ async def conversation_node(state: SessionState) -> SessionState:
             state["learning_objective"] = extracted_info["learning_objective"]
         if extracted_info.get("subject"):
             state["subject"] = extracted_info["subject"]
+
+        # Check if this is a modification request
+        existing_script = state.get("script")
+        current_status = state.get("status", "")
+        has_existing_script = bool(existing_script) and current_status == "completed"
+        
+        # Reset modification flags initially
+        state["is_modification_request"] = False
+        state["modification_request"] = None
+        
+        if has_existing_script:
+            # Detect if user wants to modify the script
+            is_modification = await detect_modification_intent(
+                message=user_message,
+                has_existing_script=True,
+                node_name="conversation"
+            )
+            
+            if is_modification:
+                state["is_modification_request"] = True
+                state["modification_request"] = user_message
+                logger.info(f"Modification request detected: {user_message}")
 
         # Generate appropriate response
         missing_fields = identify_missing_fields(state)
@@ -248,8 +271,19 @@ async def script_generation_node(state: SessionState) -> SessionState:
             "misconceptions": state.get("misconceptions", []),
         }
 
+        # If this is a user-requested modification, include existing script and modification request
+        if state.get("is_modification_request"):
+            existing_script = state.get("script", "")
+            modification_request = state.get("modification_request", "")
+            context["is_modification"] = True
+            context["existing_script"] = existing_script
+            context["modification_request"] = modification_request
+            logger.info(f"Processing modification request: {modification_request}")
+            # Reset needs_refinement flag if it was set from previous fact-check
+            state["needs_refinement"] = False
+
         # If this is a refinement, include fact-check feedback
-        if state.get("needs_refinement"):
+        elif state.get("needs_refinement"):
             fact_check_results = state.get("fact_check_results", {})
             context["fact_check_issues"] = fact_check_results.get("issues", [])
             context["low_confidence_claims"] = fact_check_results.get(
@@ -266,6 +300,10 @@ async def script_generation_node(state: SessionState) -> SessionState:
         state["script"] = script_result["script"]
         state["script_scenes"] = script_result.get("scenes", [])
         state["status"] = "script_generated"
+        
+        # Reset modification flags after processing
+        state["is_modification_request"] = False
+        state["modification_request"] = None
 
         return state
     except Exception as e:

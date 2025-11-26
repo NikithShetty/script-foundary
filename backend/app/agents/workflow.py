@@ -36,6 +36,7 @@ def create_script_generation_workflow():
             "continue_conversation": END,  # Missing required info, return to user
             "gather_curriculum": "curriculum_agent",  # Need curriculum
             "ready": "script_generation",  # All info ready
+            "modify_script": "script_generation",  # User requested modification
         },
     )
 
@@ -50,6 +51,7 @@ def create_script_generation_workflow():
             "continue_conversation": "conversation",  # Need more info, loop back to conversation
             "gather_curriculum": "curriculum_agent",  # Need curriculum (shouldn't happen, but handle edge case)
             "ready": "script_generation",  # All info ready
+            "modify_script": "script_generation",  # User requested modification
         },
     )
 
