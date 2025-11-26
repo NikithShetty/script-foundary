@@ -137,7 +137,13 @@ Required environment variables (in `backend/.env`):
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - LLM API key
 - `CURRICULLM_API_KEY` - CurricuLLM-AU API key (optional)
 - `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string (optional)
+- `REDIS_URL` - Redis connection string (optional). Supports `redis://` and `rediss://` (SSL/TLS) for services like Upstash
+- `REDIS_HOST` - Redis host (optional, alternative to REDIS_URL)
+- `REDIS_PORT` - Redis port (default: 6379)
+- `REDIS_DB` - Redis database number (default: 0)
+- `REDIS_USERNAME` - Redis username (optional)
+- `REDIS_PASSWORD` - Redis password (optional)
+- `REDIS_SSL` - Enable SSL/TLS for Redis (default: false, automatically enabled for `rediss://` URLs)
 
 See `backend/.env.example` for all available options.
 

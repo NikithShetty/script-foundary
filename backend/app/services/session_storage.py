@@ -12,14 +12,80 @@ logger = logging.getLogger(__name__)
 # Try to import Redis, fall back to in-memory if not available
 try:
     import redis
+    from urllib.parse import urlparse
 
     redis_client = None
-    if settings.redis_url:
+    # Check if Redis should be used (either via URL or individual components)
+    if settings.redis_url or settings.redis_host:
         try:
-            redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+            # If individual components are provided, use them
+            if settings.redis_host:
+                connection_kwargs = {
+                    "host": settings.redis_host,
+                    "port": settings.redis_port,
+                    "db": settings.redis_db,
+                    "decode_responses": True,
+                }
+                # Add username and password if provided
+                if settings.redis_username:
+                    connection_kwargs["username"] = settings.redis_username
+                if settings.redis_password:
+                    connection_kwargs["password"] = settings.redis_password
+                # Add SSL support if enabled (for Upstash and other SSL Redis services)
+                if settings.redis_ssl:
+                    connection_kwargs["ssl"] = True
+                    connection_kwargs["ssl_cert_reqs"] = (
+                        None  # For Upstash self-signed certs
+                    )
+                redis_client = redis.Redis(**connection_kwargs)
+            # Otherwise, use redis_url if provided
+            elif settings.redis_url:
+                # Check if URL uses SSL (rediss://) - Upstash format
+                is_ssl = settings.redis_url.startswith("rediss://")
+
+                # Parse URL and override with username/password if provided separately
+                parsed_url = urlparse(settings.redis_url)
+                connection_kwargs = {
+                    "decode_responses": True,
+                }
+                # Override with individual settings if provided
+                if settings.redis_username:
+                    connection_kwargs["username"] = settings.redis_username
+                if settings.redis_password:
+                    connection_kwargs["password"] = settings.redis_password
+                # Use from_url but with additional kwargs for username/password override
+                if connection_kwargs.get("username") or connection_kwargs.get(
+                    "password"
+                ):
+                    # If username/password are provided separately, construct connection manually
+                    host = parsed_url.hostname or "localhost"
+                    port = parsed_url.port or 6379
+                    db = int(parsed_url.path.lstrip("/")) if parsed_url.path else 0
+                    connection_kwargs.update(
+                        {
+                            "host": host,
+                            "port": port,
+                            "db": db,
+                        }
+                    )
+                    # Add SSL if URL uses rediss:// or redis_ssl is explicitly set
+                    if is_ssl or settings.redis_ssl:
+                        connection_kwargs["ssl"] = True
+                        connection_kwargs["ssl_cert_reqs"] = (
+                            None  # For Upstash self-signed certs
+                        )
+                    redis_client = redis.Redis(**connection_kwargs)
+                else:
+                    # Use URL as-is (redis.from_url handles rediss:// automatically)
+                    redis_client = redis.from_url(
+                        settings.redis_url, decode_responses=True
+                    )
+
             redis_client.ping()  # Test connection
             logger.info("Using Redis for session storage")
         except Exception as e:
+            logger.warning(f"Using Redis host: {settings.redis_host}")
+            logger.warning(f"Using Redis URL: {settings.redis_url}")
             logger.warning(f"Redis connection failed: {e}. Using in-memory storage.")
             redis_client = None
 except ImportError:

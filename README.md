@@ -74,7 +74,7 @@ See `backend/.env.example` for required environment variables:
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 - `CURRICULLM_API_KEY`
 - `DATABASE_URL` (Supabase connection string)
-- `REDIS_URL` (optional, for caching)
+- `REDIS_URL` (optional, for caching) - Supports `redis://` and `rediss://` (SSL/TLS) for services like Upstash. Or use `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_SSL` separately
 
 ## Project Structure
 
