@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Script Foundary",
   description: "Evidence-based educational script generation with curriculum alignment",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

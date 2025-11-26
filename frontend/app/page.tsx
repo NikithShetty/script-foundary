@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import ChatInterface from './components/ChatInterface';
 import ScriptOutputFromChat from './components/ScriptOutputFromChat';
 import SessionsSidebar from './components/SessionsSidebar';
@@ -39,6 +40,16 @@ export default function Home() {
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <header className="mb-8">
+          <div className="mb-2">
+            <Image
+              src="/logo.png"
+              alt="Script Foundary"
+              width={300}
+              height={300}
+              className="object-contain"
+              priority
+            />
+          </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
             Script Foundary
           </h1>
