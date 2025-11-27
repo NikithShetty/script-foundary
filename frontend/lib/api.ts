@@ -183,6 +183,7 @@ export interface ScriptResponse {
   fact_checking: {
     confidence_score: number;
     results: any;
+    warnings?: string[];
   };
   misconceptions?: {
     misconceptions?: any[];

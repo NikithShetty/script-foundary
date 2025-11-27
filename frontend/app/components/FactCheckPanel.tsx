@@ -5,6 +5,7 @@ interface FactCheckPanelProps {
     results: any[];
     confidence_score: number | null;
     citations: string[];
+    warnings?: string[];
   };
 }
 
@@ -22,6 +23,17 @@ export default function FactCheckPanel({ factChecking }: FactCheckPanelProps) {
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-xl font-bold text-gray-800 mb-4">Fact-Checking Results</h3>
 
+      {factChecking.warnings && factChecking.warnings.length > 0 && (
+        <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+          <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Warnings</h4>
+          <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+            {factChecking.warnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-700">Confidence Score</span>
@@ -32,10 +44,10 @@ export default function FactCheckPanel({ factChecking }: FactCheckPanelProps) {
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className={`h-2 rounded-full ${confidenceScore >= 80
-                ? 'bg-green-500'
-                : confidenceScore >= 60
-                  ? 'bg-yellow-500'
-                  : 'bg-red-500'
+              ? 'bg-green-500'
+              : confidenceScore >= 60
+                ? 'bg-yellow-500'
+                : 'bg-red-500'
               }`}
             style={{ width: `${confidenceScore}%` }}
           />
@@ -49,8 +61,8 @@ export default function FactCheckPanel({ factChecking }: FactCheckPanelProps) {
             <div
               key={index}
               className={`p-3 rounded border-l-4 ${result.verified
-                  ? 'bg-green-50 border-green-400'
-                  : 'bg-red-50 border-red-400'
+                ? 'bg-green-50 border-green-400'
+                : 'bg-red-50 border-red-400'
                 }`}
             >
               <p className="text-sm text-gray-700 mb-1">

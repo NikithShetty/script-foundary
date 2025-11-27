@@ -65,8 +65,8 @@ export default function Home() {
             <button
               onClick={() => setViewMode('chat')}
               className={`px-4 py-2 rounded-md font-medium transition-colors ${viewMode === 'chat'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
             >
               Chat
@@ -74,8 +74,8 @@ export default function Home() {
             <button
               onClick={() => setViewMode('script')}
               className={`px-4 py-2 rounded-md font-medium transition-colors ${viewMode === 'script'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
             >
               Generated Script
@@ -87,8 +87,8 @@ export default function Home() {
           {/* Chat Interface - Always visible on left */}
           <div className={`lg:col-span-1 ${viewMode === 'script' ? 'hidden lg:block' : ''}`}>
             <div className="lg:sticky lg:top-4" style={{ height: viewMode === 'chat' ? 'calc(100vh - 8rem)' : 'auto' }}>
-              <ChatInterface 
-                onScriptReady={handleScriptReady} 
+              <ChatInterface
+                onScriptReady={handleScriptReady}
                 initialSessionId={selectedSessionId}
               />
             </div>

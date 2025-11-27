@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # LangGraph Settings
     graph_recursion_limit: int = 2
 
+    # Fact Checker Settings
+    max_refinement_iterations: int = 3  # Maximum number of refinement loops for fact checking
+    fact_checker_max_claims: int = 10  # Maximum number of claims to check per script
+    fact_checker_confidence_threshold: float = 0.8  # Confidence threshold for "verified" status (0.0-1.0)
+    fact_checker_api_timeout: int = 10  # Timeout in seconds for Wikipedia API calls
+
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent / ".env"),
         env_file_encoding="utf-8",

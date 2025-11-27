@@ -311,7 +311,7 @@ def create_initial_state(session_id: str) -> SessionState:
         "refinement_iterations": 0,
         "ready_to_generate": False,
         "needs_refinement": False,
-        "max_refinement_iterations": 3,
+        "max_refinement_iterations": settings.max_refinement_iterations,
         "is_modification_request": False,
         "modification_request": None,
         "errors": [],

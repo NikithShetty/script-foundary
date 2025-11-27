@@ -71,31 +71,55 @@ def check_fact_check_results(state: SessionState) -> str:
     Determine if script needs refinement based on fact-check results.
     Returns: "refine" | "complete"
     """
-    max_iterations = state.get("max_refinement_iterations", 3)
+    from app.config import settings
+
+    max_iterations = state.get(
+        "max_refinement_iterations", settings.max_refinement_iterations
+    )
     current_iterations = state.get("refinement_iterations", 0)
     needs_refinement = state.get("needs_refinement", False)
     confidence_score = state.get("confidence_score", 1.0)
+    fact_check_results = state.get("fact_check_results", {})
+    total_claims = fact_check_results.get("total_claims", 0)
+    verified_claims = fact_check_results.get("verified_claims", 0)
 
     logger.info("\n" + "=" * 80)
     logger.info("[DECISION] check_fact_check_results")
     logger.info(f"  Current Iterations: {current_iterations}/{max_iterations}")
     logger.info(f"  Needs Refinement: {needs_refinement}")
+    logger.info(f"  Status in state: {state.get('status')}")
     logger.info(f"  Confidence Score: {confidence_score:.2f}")
 
-    # Check if we've exceeded max iterations
-    if current_iterations >= max_iterations:
+    # Check if status is already set to "completed" by the node (e.g., max iterations exceeded)
+    # This takes priority - if node already completed, route to END
+    if state.get("status") == "completed":
         decision = "complete"
-        logger.info(f"  → DECISION: {decision} (max iterations reached)")
+        logger.info(f"  → DECISION: {decision} (status already set to completed by node)")
+        logger.info("=" * 80)
+        return decision
+
+    # Check if we've exceeded max iterations
+    # Note: State modifications (warnings, status) are handled in fact_checking_node
+    # This function only returns routing decisions
+    # Also check if the next iteration would exceed max (defensive check)
+    if current_iterations >= max_iterations or (current_iterations + 1) > max_iterations:
+        decision = "complete"
+        logger.info(f"  → DECISION: {decision} (max iterations reached: {current_iterations}/{max_iterations})")
         logger.info("=" * 80)
         return decision
 
     # Check if refinement is needed
-    if needs_refinement and confidence_score < 0.8:
+    confidence_threshold = settings.fact_checker_confidence_threshold
+    if needs_refinement and confidence_score < confidence_threshold:
         decision = "refine"
-        logger.info(f"  → DECISION: {decision} (low confidence)")
+        logger.info(
+            f"  → DECISION: {decision} (low confidence: {confidence_score:.2f} < {confidence_threshold})"
+        )
     else:
         decision = "complete"
-        logger.info(f"  → DECISION: {decision} (confidence acceptable)")
+        logger.info(
+            f"  → DECISION: {decision} (confidence acceptable: {confidence_score:.2f} >= {confidence_threshold})"
+        )
 
     logger.info("=" * 80)
     return decision

@@ -30,9 +30,10 @@ export default function ScriptOutputFromChat({ scriptResponse }: ScriptOutputFro
       warnings: [],
     },
     fact_checking: {
-      results: [],
+      results: scriptResponse.fact_checking?.results?.claims || [],
       confidence_score: scriptResponse.fact_checking?.confidence_score || null,
-      citations: [],
+      citations: scriptResponse.fact_checking?.results?.claims?.flatMap((c: any) => c.sources || []) || [],
+      warnings: scriptResponse.fact_checking?.warnings || [],
     },
     cultural_safety: {
       flags: scriptResponse.cultural_safety?.flags || [],
@@ -44,14 +45,16 @@ export default function ScriptOutputFromChat({ scriptResponse }: ScriptOutputFro
       metadata: scriptResponse.accessibility?.metadata || {},
     },
     errors: [],
-    warnings: [],
+    warnings: [
+      ...(scriptResponse.fact_checking?.warnings || []),
+    ],
     metadata: {},
   };
 
   return (
     <div className="space-y-6">
       <ScriptOutput output={output} />
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <CurriculumDashboard curriculum={output.curriculum} />
         <MisconceptionPanel misconceptions={output.misconceptions} />

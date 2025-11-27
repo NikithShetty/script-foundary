@@ -428,9 +428,17 @@ async def send_message(session_id: str, request: ChatRequest):
 
         # Save updated state
         await store_session(session_id, result)
+        
+        # Log state for debugging when completed
+        status_value = result.get("status", "collecting_info")
+        if status_value == "completed":
+            logger.info(f"Workflow completed for session {session_id}")
+            logger.info(f"  Has script: {bool(result.get('script'))}")
+            logger.info(f"  Script length: {len(result.get('script', ''))} chars")
+            logger.info(f"  Warnings: {len(result.get('warnings', []))}")
+            logger.info(f"  Confidence score: {result.get('confidence_score')}")
 
         # Determine the appropriate message based on status
-        status_value = result.get("status", "collecting_info")
 
         # If script generation is completed, create a completion message
         if status_value == "completed":
@@ -605,19 +613,35 @@ async def get_script(session_id: str):
                 detail=f"Session {session_id} not found",
             )
 
-        if state.get("status") != "completed":
+        status_value = state.get("status")
+        if status_value != "completed":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Script not ready. Current status: {state.get('status')}",
+                detail=f"Script not ready. Current status: {status_value}",
             )
 
         script = state.get("script")
         if not script:
+            logger.error(f"Script not found in session {session_id} even though status is completed")
+            logger.error(f"State keys: {list(state.keys())}")
+            logger.error(f"State status: {state.get('status')}")
+            logger.error(f"State warnings: {state.get('warnings', [])}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Script not found in session",
             )
 
+        # Include warnings in fact_checking results if present
+        fact_checking_data = {
+            "confidence_score": state.get("confidence_score", 0.0),
+            "results": state.get("fact_check_results", {}),
+        }
+        
+        # Add warnings if they exist
+        warnings = state.get("warnings", [])
+        if warnings:
+            fact_checking_data["warnings"] = warnings
+        
         return ScriptResponse(
             session_id=session_id,
             topic=state.get("topic", ""),
@@ -629,10 +653,7 @@ async def get_script(session_id: str):
                 "outcomes": state.get("curriculum_outcomes", []),
                 "codes": state.get("curriculum_codes", []),
             },
-            fact_checking={
-                "confidence_score": state.get("confidence_score", 0.0),
-                "results": state.get("fact_check_results", {}),
-            },
+            fact_checking=fact_checking_data,
             misconceptions={"misconceptions": state.get("misconceptions", [])},
             cultural_safety={"flags": state.get("cultural_safety_flags", [])},
             accessibility={"metadata": state.get("accessibility_metadata", {})},
