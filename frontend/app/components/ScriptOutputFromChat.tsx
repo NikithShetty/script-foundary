@@ -26,7 +26,12 @@ export default function ScriptOutputFromChat({ scriptResponse }: ScriptOutputFro
       prerequisites: [],
     },
     misconceptions: {
-      addressed: scriptResponse.misconceptions?.misconceptions || [],
+      addressed: (scriptResponse.misconceptions?.misconceptions || []).map((mc: any) => ({
+        misconception: mc.misconception,
+        correction: mc.correction || mc.correct_understanding,
+        why_common: mc.why_common,
+        correct_understanding: mc.correct_understanding,
+      })),
       warnings: [],
     },
     fact_checking: {

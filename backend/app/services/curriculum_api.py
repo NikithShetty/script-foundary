@@ -12,61 +12,65 @@ logger = logging.getLogger(__name__)
 CURRICULLM_API_URL = os.getenv("CURRICULLM_API_URL", "https://api.curricullm.com")
 
 
-def get_curriculum_outcomes(topic: str, year_level: str, subject: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_curriculum_outcomes(
+    topic: str, year_level: str, subject: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Get curriculum outcomes for a topic and year level.
-    
+
     Args:
         topic: Topic name
         year_level: Year level (can be string like "1", "2", "university level", etc.)
         subject: Optional subject area
-        
+
     Returns:
         List of curriculum outcomes
     """
     api_key = os.getenv("CURRICULLM_API_KEY")
-    
+
     if not api_key:
         # Return mock data if API key not available
         return _get_mock_outcomes(topic, year_level, subject)
-    
+
     try:
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        
+
         params = {
             "topic": topic,
             "year_level": year_level,
         }
-        
+
         if subject:
             params["subject"] = subject
-        
+
         response = requests.get(
             f"{CURRICULLM_API_URL}/outcomes",
             headers=headers,
             params=params,
             timeout=10,
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             return data.get("outcomes", [])
         else:
             # Fallback to mock data on API error
             return _get_mock_outcomes(topic, year_level, subject)
-            
+
     except Exception:
         # Fallback to mock data on exception
         return _get_mock_outcomes(topic, year_level, subject)
 
 
-def _get_mock_outcomes(topic: str, year_level: str, subject: Optional[str] = None) -> List[Dict[str, Any]]:
+def _get_mock_outcomes(
+    topic: str, year_level: str, subject: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Return mock curriculum outcomes when API is unavailable."""
     subject_code = (subject or "SCI")[:3].upper()
-    
+
     return [
         {
             "code": f"AC{year_level}.{subject_code}.01",
@@ -82,11 +86,11 @@ def _get_mock_outcomes(topic: str, year_level: str, subject: Optional[str] = Non
 def get_prerequisites(topic: str, year_level: str) -> List[str]:
     """
     Get prerequisite knowledge for a topic.
-    
+
     Args:
         topic: Topic name
         year_level: Year level (can be string)
-        
+
     Returns:
         List of prerequisite topics
     """
@@ -100,25 +104,25 @@ def get_learning_needs_analysis(
     """
     Get prerequisites and misconceptions in a single prompt from curriculum API.
     This follows the Learning Needs Analysis methodology.
-    
+
     Args:
         topic: Topic name
         year_level: Year level (can be string)
         subject: Optional subject area
-        
+
     Returns:
         Dictionary with 'prerequisites' (List[str]) and 'misconceptions' (List[Dict[str, Any]])
     """
     api_key = os.getenv("CURRICULLM_API_KEY")
-    
+
     if not api_key:
         # Return mock data if API key not available
         return _get_mock_learning_needs(topic, year_level, subject)
-    
+
     try:
         # Use OpenAI-compatible client for curriculum API
         client = OpenAI(api_key=api_key, base_url=CURRICULLM_API_URL)
-        
+
         prompt = f"""You are an expert educational curriculum analyst. For the following topic, provide a comprehensive Learning Needs Analysis.
 
 Topic: {topic}
@@ -161,9 +165,9 @@ Be thorough and specific. Focus on the most important prerequisites and the most
             temperature=0.3,
             max_tokens=2000,
         )
-        
+
         content = response.choices[0].message.content
-        
+
         # Log the API call
         logger.info("=" * 80)
         logger.info("[CURRICULUM API] Learning Needs Analysis")
@@ -173,7 +177,7 @@ Be thorough and specific. Focus on the most important prerequisites and the most
         if len(content) > 500:
             logger.info(f"... (truncated, total length: {len(content)} chars)")
         logger.info("=" * 80)
-        
+
         # Parse JSON response
         content = content.strip()
         # Remove markdown code blocks if present
@@ -184,33 +188,52 @@ Be thorough and specific. Focus on the most important prerequisites and the most
         if content.endswith("```"):
             content = content[:-3]
         content = content.strip()
-        
+
         result = json.loads(content)
-        
+
         # Ensure proper structure
         prerequisites = result.get("prerequisites", [])
         misconceptions = result.get("misconceptions", [])
-        
-        # Validate misconceptions structure
+
+        # Validate misconceptions structure and filter out generic/placeholder ones
         validated_misconceptions = []
+        generic_patterns = [
+            "common misunderstanding about",
+            "correct understanding of",
+            "correct concept",
+        ]
+
         for misc in misconceptions:
             if isinstance(misc, dict):
-                validated_misconceptions.append(misc)
+                misconception_text = misc.get("misconception", "").lower()
+                # Skip if it's a generic placeholder
+                if any(pattern in misconception_text for pattern in generic_patterns):
+                    continue
+                # Ensure it has meaningful content
+                if (
+                    misc.get("misconception")
+                    and len(misc.get("misconception", "").strip()) > 10
+                ):
+                    validated_misconceptions.append(misc)
             elif isinstance(misc, str):
-                # If it's just a string, convert to dict format
-                validated_misconceptions.append(
-                    {
-                        "misconception": misc,
-                        "why_common": "Common student misunderstanding",
-                        "correct_understanding": "Correct concept",
-                    }
-                )
-        
+                # Only add if it's a meaningful string (not generic)
+                misc_lower = misc.lower()
+                if len(misc.strip()) > 10 and not any(
+                    pattern in misc_lower for pattern in generic_patterns
+                ):
+                    validated_misconceptions.append(
+                        {
+                            "misconception": misc,
+                            "why_common": "Common student misunderstanding",
+                            "correct_understanding": "See curriculum resources for correct understanding",
+                        }
+                    )
+
         return {
             "prerequisites": prerequisites if isinstance(prerequisites, list) else [],
             "misconceptions": validated_misconceptions,
         }
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing JSON from curriculum API: {str(e)}", exc_info=True)
         return _get_mock_learning_needs(topic, year_level, subject)
@@ -231,14 +254,5 @@ def _get_mock_learning_needs(
             f"Basic understanding of {topic}",
             f"Year {year_level} foundational concepts",
         ],
-        "misconceptions": [
-            {
-                "misconception": f"Common misunderstanding about {topic}",
-                "why_common": "Students often confuse related concepts",
-                "correct_understanding": f"Correct understanding of {topic}",
-            }
-        ],
+        "misconceptions": [],  # Return empty list instead of generic placeholder
     }
-
-
-
