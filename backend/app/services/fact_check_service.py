@@ -100,16 +100,12 @@ Return only the JSON array, no other text."""
                 # Ensure importance is a float between 0 and 1
                 importance = float(item.get("importance", 0.5))
                 importance = max(0.0, min(1.0, importance))
-                normalized_claims.append({
-                    "claim": str(item["claim"]),
-                    "importance": importance
-                })
+                normalized_claims.append(
+                    {"claim": str(item["claim"]), "importance": importance}
+                )
             elif isinstance(item, str):
                 # Backward compatibility: if just a string, assign default importance
-                normalized_claims.append({
-                    "claim": item,
-                    "importance": 0.5
-                })
+                normalized_claims.append({"claim": item, "importance": 0.5})
 
         # Sort by importance (highest first) and limit to max claims
         normalized_claims.sort(key=lambda x: x["importance"], reverse=True)
@@ -153,13 +149,13 @@ Return only the JSON array, no other text."""
                         importance = 0.7
                     elif re.search(r"\d+", sentence):  # Numbers
                         importance = 0.5
-                    if any(term in sentence.lower() for term in ["definition", "means", "is defined", "consists"]):
+                    if any(
+                        term in sentence.lower()
+                        for term in ["definition", "means", "is defined", "consists"]
+                    ):
                         importance = max(importance, 0.6)  # Definitions are important
-                    
-                    claims.append({
-                        "claim": sentence,
-                        "importance": importance
-                    })
+
+                    claims.append({"claim": sentence, "importance": importance})
 
         # Sort by importance and limit
         claims.sort(key=lambda x: x["importance"], reverse=True)

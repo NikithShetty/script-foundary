@@ -44,6 +44,7 @@ export interface ScriptOutput {
     results: any[];
     confidence_score: number | null;
     citations: string[];
+    warnings?: string[];
   };
   cultural_safety: {
     flags: string[];
