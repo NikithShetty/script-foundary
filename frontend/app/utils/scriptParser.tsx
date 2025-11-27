@@ -17,10 +17,11 @@ export function parseScript(script: string): ParsedScriptElement[] {
   const lines = script.split('\n');
   const elements: ParsedScriptElement[] = [];
   const knownLabels = [
-    'Visual', 'Narration', 'Text Overlay', 'Text overlay',
-    'Accessibility', 'Accessibility cue', 'Character', 'Voice',
-    'Problem setup', 'Step-by-step', 'Visual metaphor', 'Visual description',
-    'Text overlay', 'Accessibility cue'
+    'Visual', 'Visual Description', 'Visual description', 'Narration',
+    'Text Overlay', 'Text overlay', 'On-Screen Text', 'On-screen text',
+    'Accessibility', 'Accessibility Note', 'Accessibility note', 'Accessibility cue',
+    'Character', 'Voice', 'Teacher Notes', 'Teacher notes',
+    'Problem setup', 'Step-by-step', 'Visual metaphor'
   ];
 
   let currentList: string[] = [];
@@ -140,6 +141,32 @@ export function parseScript(script: string): ParsedScriptElement[] {
           });
           continue;
         }
+      }
+    }
+
+    // Section labels with bold markdown (**Narration:**, **Visual Description:**, etc.)
+    const boldLabelMatch = line.match(/^\*\*([A-Z][A-Za-z\s]{2,30}):\*\*\s*(.+)?$/);
+    if (boldLabelMatch) {
+      const label = boldLabelMatch[1].trim();
+      const content = boldLabelMatch[2]?.trim() || '';
+
+      // Check if it matches any known label (case-insensitive, partial match)
+      const matchedLabel = knownLabels.find(known =>
+        label.toLowerCase().includes(known.toLowerCase()) ||
+        known.toLowerCase().includes(label.toLowerCase())
+      );
+
+      if (matchedLabel) {
+        if (currentList.length > 0) {
+          elements.push({ type: 'list', content: '', items: [...currentList] });
+          currentList = [];
+        }
+        elements.push({
+          type: 'section-label',
+          content: content || label,
+          label: matchedLabel,
+        });
+        continue;
       }
     }
 

@@ -12,30 +12,30 @@ def get_fame_prompt(
 ) -> str:
     """
     Generate FAME framework prompt for script generation.
-    
+
     Args:
         topic: Topic for the script
         year_level: Year level (can be string like "1", "2", "university level", etc.)
         learning_objective: Learning objective
         curriculum_codes: List of curriculum codes
         misconceptions: List of misconceptions to address
-        
+
     Returns:
         Complete prompt string
     """
     curriculum_codes = curriculum_codes or []
     misconceptions = misconceptions or []
-    
+
     misconception_text = ""
     if misconceptions:
         misconception_text = "\nCommon misconceptions to address:\n"
         for i, mc in enumerate(misconceptions[:3], 1):
             misconception_text += f"{i}. {mc.get('misconception', 'N/A')} - {mc.get('correction', 'N/A')}\n"
-    
+
     curriculum_text = ""
     if curriculum_codes:
         curriculum_text = f"\nCurriculum Codes: {', '.join(curriculum_codes)}\n"
-    
+
     prompt = f"""You are an expert educational script writer. Generate a script for:
 Topic: {topic}
 Year Level: {year_level}
@@ -135,16 +135,26 @@ Conclude with these elements in order:
 
 ### SCENE OUTPUT FORMAT
 
-Each scene in the script must include all of these elements:
+Each scene in the script must include all of these elements, formatted EXACTLY as shown:
 
-- **Narration**: What the teacher/narrator says
-- **Visual Description**: Detailed description of what should be shown visually
-- **On-Screen Text**: Any text overlays, labels, or captions
-- **Accessibility Note**: Considerations for accessibility (alt text, captions, etc.)
-- **Tags**: Optional metadata tags
-- **Teacher Notes**: Misconceptions to watch for, retrieval cues, pedagogical reminders
+**Scene X: [Scene Title]**
 
-Format each scene clearly with these sections explicitly labeled.
+Narration:
+[What the teacher/narrator says]
+
+Visual Description:
+[Detailed description of what should be shown visually]
+
+On-Screen Text:
+[Any text overlays, labels, or captions]
+
+Accessibility Note:
+[Considerations for accessibility - alt text, captions, etc.]
+
+Teacher Notes:
+[Misconceptions to watch for, retrieval cues, pedagogical reminders]
+
+Important: Use plain text labels with colons (Narration:, Visual Description:, etc.), NOT bold markdown. Each section should be on its own line with the label followed by a colon, then the content on the following line(s).
 
 ## QUALITY GUIDELINES
 
@@ -155,8 +165,5 @@ Avoid:
 - Jargon not defined at this year level
 
 Generate the complete script now:"""
-    
+
     return prompt
-
-
-

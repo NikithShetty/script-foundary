@@ -259,37 +259,105 @@ def _parse_scenes_from_script(script: str) -> List[Dict[str, Any]]:
     Returns:
         List of scene dictionaries
     """
+    import re
+    
     scenes = []
     lines = script.split("\n")
     current_scene = None
+    current_section = None
+    collecting_content = False
 
-    for line in lines:
-        line = line.strip()
-        if not line:
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        if not line_stripped:
+            collecting_content = False
             continue
 
-        # Detect scene headers
-        if line.upper().startswith("SCENE"):
+        # Detect scene headers (Scene 1:, **Scene 1:**, ## Scene 1, etc.)
+        scene_match = (
+            line_stripped.upper().startswith("SCENE") or
+            line_stripped.startswith("##") or
+            (line_stripped.startswith("**") and "Scene" in line_stripped and ":" in line_stripped)
+        )
+        
+        if scene_match:
             if current_scene:
                 scenes.append(current_scene)
+            # Extract scene title
+            title = line_stripped.replace("**", "").replace("#", "").strip()
+            if title.startswith("Scene"):
+                title = title.split(":", 1)[1].strip() if ":" in title else title
             current_scene = {
                 "scene_number": len(scenes) + 1,
-                "title": line,
+                "title": title or f"Scene {len(scenes) + 1}",
                 "visual_description": "",
                 "narration": "",
                 "text_overlay": "",
+                "accessibility_cue": "",
+                "teacher_notes": "",
             }
-        elif current_scene:
-            # Parse scene content
-            if "visual" in line.lower() or "image" in line.lower():
-                current_scene["visual_description"] += line + " "
-            elif "narration" in line.lower() or "voice" in line.lower():
-                current_scene["narration"] += line + " "
-            elif "overlay" in line.lower() or "text" in line.lower():
-                current_scene["text_overlay"] += line + " "
+            current_section = None
+            collecting_content = False
+            continue
+
+        if not current_scene:
+            continue
+
+        # Detect section labels (Narration:, Visual Description:, **Narration:**, etc.)
+        # Handle bold markdown labels
+        if line_stripped.startswith("**") and ":" in line_stripped:
+            label_match = re.match(r"^\*\*([^:]+):\*\*", line_stripped)
+            if label_match:
+                label = label_match.group(1).strip()
+                content = line_stripped.split(":", 1)[1].replace("**", "").strip() if ":" in line_stripped else ""
             else:
-                # Default to narration
-                current_scene["narration"] += line + " "
+                label = line_stripped.replace("**", "").split(":")[0].strip()
+                content = ""
+        # Handle regular colon labels
+        elif ":" in line_stripped and not line_stripped.startswith("-") and not line_stripped.startswith("*"):
+            parts = line_stripped.split(":", 1)
+            label = parts[0].strip()
+            content = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            label = None
+            content = ""
+
+        # Map labels to scene fields
+        if label:
+            label_lower = label.lower()
+            if "narration" in label_lower:
+                current_section = "narration"
+                if content:
+                    current_scene["narration"] = content
+                collecting_content = True
+            elif "visual" in label_lower and "description" in label_lower:
+                current_section = "visual_description"
+                if content:
+                    current_scene["visual_description"] = content
+                collecting_content = True
+            elif "on-screen" in label_lower or ("text" in label_lower and "overlay" in label_lower):
+                current_section = "text_overlay"
+                if content:
+                    current_scene["text_overlay"] = content
+                collecting_content = True
+            elif "accessibility" in label_lower:
+                current_section = "accessibility_cue"
+                if content:
+                    current_scene["accessibility_cue"] = content
+                collecting_content = True
+            elif "teacher" in label_lower and "note" in label_lower:
+                current_section = "teacher_notes"
+                if content:
+                    current_scene["teacher_notes"] = content
+                collecting_content = True
+            else:
+                collecting_content = False
+        elif collecting_content and current_section:
+            # Continue collecting content for current section
+            if current_scene.get(current_section):
+                current_scene[current_section] += " " + line_stripped
+            else:
+                current_scene[current_section] = line_stripped
 
     if current_scene:
         scenes.append(current_scene)
@@ -303,6 +371,8 @@ def _parse_scenes_from_script(script: str) -> List[Dict[str, Any]]:
                 "visual_description": "Educational content visualization",
                 "narration": script,
                 "text_overlay": "",
+                "accessibility_cue": "",
+                "teacher_notes": "",
             }
         )
 
