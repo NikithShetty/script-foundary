@@ -298,6 +298,7 @@ def create_initial_state(session_id: str) -> SessionState:
         "topic": None,
         "year_level": None,
         "subject": None,
+        "script_pace": "slow",  # Default to slow-paced for first-time learners
         "curriculum_outcomes": [],
         "curriculum_codes": [],
         "prerequisites": [],

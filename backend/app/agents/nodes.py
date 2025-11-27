@@ -8,7 +8,11 @@ from app.services.llm_service import (
     generate_conversation_response,
     detect_modification_intent,
 )
-from app.services.curriculum_api import get_curriculum_outcomes, get_prerequisites
+from app.services.curriculum_api import (
+    get_curriculum_outcomes,
+    get_prerequisites,
+    get_learning_needs_analysis,
+)
 from app.services.fact_check_service import extract_factual_claims, check_fact
 from app.agents.generators import (
     ScienceScriptAgent,
@@ -115,6 +119,12 @@ async def conversation_node(state: SessionState) -> SessionState:
             state["learning_objective"] = extracted_info["learning_objective"]
         if extracted_info.get("subject"):
             state["subject"] = extracted_info["subject"]
+        if extracted_info.get("script_pace"):
+            state["script_pace"] = extracted_info["script_pace"]
+        
+        # Set default pace to "slow" if not specified (assuming first-time learners)
+        if not state.get("script_pace"):
+            state["script_pace"] = "slow"
 
         # Check if this is a modification request
         existing_script = state.get("script")
@@ -160,8 +170,11 @@ async def conversation_node(state: SessionState) -> SessionState:
 
 async def curriculum_agent_node(state: SessionState) -> SessionState:
     """
-    Fetch curriculum information from CurricuLLM-AU API.
-    Can be called by orchestrator or script generator.
+    Fetch curriculum information and perform Learning Needs Analysis from CurricuLLM-AU API.
+    This follows the Learning Needs Analysis methodology:
+    1. Get prerequisites from curriculum API
+    2. Get expected misconceptions from curriculum API
+    Both are fetched in the same prompt.
     """
     try:
         topic = state.get("topic")
@@ -179,20 +192,30 @@ async def curriculum_agent_node(state: SessionState) -> SessionState:
             )
             return state
 
-        # Call curriculum API (existing service)
+        # Call curriculum API for outcomes (existing service)
         outcomes = get_curriculum_outcomes(
             topic=topic, year_level=year_level, subject=subject
         )
 
-        # Update state
+        # Update state with outcomes
         state["curriculum_outcomes"] = outcomes
         state["curriculum_codes"] = [
             outcome.get("code", "") for outcome in outcomes if outcome.get("code")
         ]
 
-        # Get prerequisites if available
-        prerequisites = get_prerequisites(topic, year_level)
-        state["prerequisites"] = prerequisites
+        # Perform Learning Needs Analysis: Get prerequisites and misconceptions in same prompt
+        learning_needs = get_learning_needs_analysis(
+            topic=topic, year_level=year_level, subject=subject
+        )
+        
+        # Update state with prerequisites and misconceptions
+        state["prerequisites"] = learning_needs.get("prerequisites", [])
+        state["misconceptions"] = learning_needs.get("misconceptions", [])
+
+        logger.info(
+            f"Learning Needs Analysis completed: {len(state['prerequisites'])} prerequisites, "
+            f"{len(state['misconceptions'])} misconceptions"
+        )
 
         # Update readiness status after fetching curriculum
         # This replaces the state updates that were in information_gathering_node
@@ -266,7 +289,9 @@ async def script_generation_node(state: SessionState) -> SessionState:
             "subject": state.get("subject"),
             "curriculum_outcomes": state.get("curriculum_outcomes", []),
             "curriculum_codes": state.get("curriculum_codes", []),
+            "prerequisites": state.get("prerequisites", []),
             "misconceptions": state.get("misconceptions", []),
+            "script_pace": state.get("script_pace", "slow"),  # Default to slow-paced
         }
 
         # If this is a user-requested modification, include existing script and modification request

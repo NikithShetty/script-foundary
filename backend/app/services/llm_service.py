@@ -416,19 +416,23 @@ async def extract_information_from_message(
 
     # Build prompt for information extraction
     prompt = f"""Extract structured information from the following educator message. 
-Return a JSON object with any of these fields if mentioned: topic, year_level, learning_objective, subject.
+Return a JSON object with any of these fields if mentioned: topic, year_level, learning_objective, subject, script_pace.
 
 Current state:
 - Topic: {current_state.get("topic", "Not set")}
 - Year Level: {current_state.get("year_level", "Not set")}
 - Learning Objective: {current_state.get("learning_objective", "Not set")}
 - Subject: {current_state.get("subject", "Not set")}
+- Script Pace: {current_state.get("script_pace", "Not set")}
 
 Educator message: {message}
 
 Extract only the fields that are explicitly mentioned or can be clearly inferred. 
-IMPORTANT: year_level must always be a string (e.g., "8" not 8).
-Return JSON format: {{"topic": "...", "year_level": "...", "learning_objective": "...", "subject": "..."}}
+IMPORTANT: 
+- year_level must always be a string (e.g., "8" not 8).
+- script_pace should be one of: "slow", "normal", "fast". Only extract if the educator explicitly mentions pace, speed, or tone preferences.
+
+Return JSON format: {{"topic": "...", "year_level": "...", "learning_objective": "...", "subject": "...", "script_pace": "..."}}
 Only include fields that have values."""
 
     try:
