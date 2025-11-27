@@ -342,19 +342,28 @@ async def fact_checking_node(state: SessionState) -> SessionState:
         from app.config import settings
 
         top_n_claims = settings.fact_checker_top_n_claims
+        min_importance = settings.fact_checker_min_importance
+
+        # Filter out trivial facts (below minimum importance threshold)
+        non_trivial_claims = [
+            claim
+            for claim in claims_data
+            if claim.get("importance", 0.0) >= min_importance
+        ]
 
         # Sort by importance (already sorted, but ensure it)
-        claims_data.sort(key=lambda x: x.get("importance", 0.0), reverse=True)
+        non_trivial_claims.sort(key=lambda x: x.get("importance", 0.0), reverse=True)
 
         # Take top N claims for verification
-        claims_to_verify = claims_data[:top_n_claims]
+        claims_to_verify = non_trivial_claims[:top_n_claims]
 
+        trivial_count = len(claims_data) - len(non_trivial_claims)
         logger.info(
-            f"Extracted {len(claims_data)} total claims, verifying top {len(claims_to_verify)} by importance"
+            f"Extracted {len(claims_data)} total claims, filtered out {trivial_count} trivial facts (importance < {min_importance}), verifying top {len(claims_to_verify)} by importance"
         )
-        if len(claims_data) > top_n_claims:
+        if len(non_trivial_claims) > top_n_claims:
             logger.info(
-                f"  Skipping {len(claims_data) - top_n_claims} lower-importance claims"
+                f"  Skipping {len(non_trivial_claims) - top_n_claims} lower-importance claims"
             )
 
         # Check each claim

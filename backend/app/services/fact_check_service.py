@@ -45,7 +45,13 @@ For each claim, assign an importance score (0.0-1.0) based on:
 - Educational significance (core concepts = high importance)
 - Potential for misinformation (critical facts = high importance)
 - Relevance to learning objectives (central facts = high importance)
-- Trivial facts (common knowledge, obvious statements = low importance)
+
+IMPORTANT: Mark trivial facts with very low importance scores (below 0.3):
+- Common knowledge statements that everyone knows
+- Obvious statements (e.g., "The script is 5 minutes long", "This is a video")
+- Meta-statements about the script itself
+- Simple observations that don't require verification
+- Statements about formatting, structure, or presentation
 
 Text to analyze:
 {text[:3000] if len(text) > 3000 else text}

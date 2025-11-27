@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     fact_checker_top_n_claims: int = (
         5  # Number of top important claims to verify (sorted by importance)
     )
+    fact_checker_min_importance: float = (
+        0.3  # Minimum importance threshold to filter out trivial facts (0.0-1.0)
+    )
     fact_checker_confidence_threshold: float = (
         0.8  # Confidence threshold for "verified" status (0.0-1.0)
     )
