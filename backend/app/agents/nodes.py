@@ -322,29 +322,85 @@ async def fact_checking_node(state: SessionState) -> SessionState:
         if not script:
             state["errors"].append("No script available for fact-checking")
             state["status"] = "failed"
+            # Initialize fact_check_results structure even on failure
+            state["fact_check_results"] = {
+                "claims": [],
+                "confidence_score": 0.0,
+                "total_claims": 0,
+                "total_extracted_claims": 0,
+                "verified_claims": 0,
+                "issues": [],
+                "low_confidence_claims": [],
+            }
+            state["confidence_score"] = 0.0
             return state
 
-        # Extract factual claims from script
-        claims = extract_factual_claims(script)
+        # Extract factual claims from script (with importance scores)
+        claims_data = extract_factual_claims(script)
+
+        # Sort by importance and take top N important claims to verify
+        from app.config import settings
+
+        top_n_claims = settings.fact_checker_top_n_claims
+
+        # Sort by importance (already sorted, but ensure it)
+        claims_data.sort(key=lambda x: x.get("importance", 0.0), reverse=True)
+
+        # Take top N claims for verification
+        claims_to_verify = claims_data[:top_n_claims]
+
+        logger.info(
+            f"Extracted {len(claims_data)} total claims, verifying top {len(claims_to_verify)} by importance"
+        )
+        if len(claims_data) > top_n_claims:
+            logger.info(
+                f"  Skipping {len(claims_data) - top_n_claims} lower-importance claims"
+            )
 
         # Check each claim
         results = []
         verified_count = 0
 
-        for claim in claims:
-            result = check_fact(claim)  # Uses existing fact_check_service
+        for claim_data in claims_to_verify:
+            claim_text = (
+                claim_data.get("claim", "")
+                if isinstance(claim_data, dict)
+                else str(claim_data)
+            )
+            importance = (
+                claim_data.get("importance", 0.5)
+                if isinstance(claim_data, dict)
+                else 0.5
+            )
+
+            if not claim_text:
+                continue
+
+            result = check_fact(claim_text)  # Uses existing fact_check_service
+            # Add importance to result
+            result["importance"] = importance
             results.append(result)
             if result.get("verified", False):
                 verified_count += 1
 
-        # Calculate confidence score
-        confidence_score = (verified_count / len(claims)) if claims else 1.0
+        # Calculate confidence score based on verified claims
+        # Weight by importance: higher importance claims count more
+        total_importance = sum(c.get("importance", 0.5) for c in claims_to_verify)
+        verified_importance = sum(
+            c.get("importance", 0.5)
+            for c, r in zip(claims_to_verify, results)
+            if r.get("verified", False)
+        )
+        confidence_score = (
+            (verified_importance / total_importance) if total_importance > 0 else 1.0
+        )
 
-        # Update state with results
+        # Update state with results - always include claims array even if empty
         state["fact_check_results"] = {
-            "claims": results,
+            "claims": results,  # Always include the checked claims with their scores
             "confidence_score": confidence_score,
-            "total_claims": len(claims),
+            "total_claims": len(claims_to_verify),
+            "total_extracted_claims": len(claims_data),
             "verified_claims": verified_count,
             "issues": [r for r in results if not r.get("verified", False)],
             "low_confidence_claims": [
@@ -352,6 +408,10 @@ async def fact_checking_node(state: SessionState) -> SessionState:
             ],
         }
         state["confidence_score"] = confidence_score
+
+        # Ensure claims array is always present (even if empty) for frontend display
+        if "claims" not in state["fact_check_results"]:
+            state["fact_check_results"]["claims"] = []
 
         # Determine if refinement is needed
         from app.config import settings
@@ -366,23 +426,31 @@ async def fact_checking_node(state: SessionState) -> SessionState:
         # This takes priority over confidence score
         # Note: We check >= because if we're AT max, we've already done max iterations
         # (e.g., if max=3 and current=3, we've done 3 iterations already)
-        logger.info(f"Fact-check iteration check: current={current_iterations}, max={max_iterations}")
+        logger.info(
+            f"Fact-check iteration check: current={current_iterations}, max={max_iterations}"
+        )
         if current_iterations >= max_iterations:
             # Max iterations exceeded, complete the script but with warning
-            logger.info(f"Max iterations already reached ({current_iterations} >= {max_iterations}), completing script")
+            logger.info(
+                f"Max iterations already reached ({current_iterations} >= {max_iterations}), completing script"
+            )
             state["needs_refinement"] = False
             state["status"] = "completed"
 
             # Ensure script exists in state (should already be there from script_generation_node)
             if not state.get("script"):
-                logger.warning("Script not found in state when max iterations exceeded!")
+                logger.warning(
+                    "Script not found in state when max iterations exceeded!"
+                )
                 state["errors"].append("Script was lost during fact-checking process")
             else:
-                logger.info(f"Script found in state: {len(state.get('script', ''))} characters")
+                logger.info(
+                    f"Script found in state: {len(state.get('script', ''))} characters"
+                )
 
             # Add warning to state explaining why script has low confidence
             warnings = state.get("warnings", [])
-            total_claims = len(claims)
+            total_claims = state.get("fact_check_results", {}).get("total_claims", 0)
 
             warning_msg = (
                 f"Maximum refinement iterations ({max_iterations}) reached. "
@@ -405,52 +473,111 @@ async def fact_checking_node(state: SessionState) -> SessionState:
                 f"Max iterations ({max_iterations}) already reached. Completing script with current confidence: {confidence_score:.2f}"
             )
             logger.info(f"Warning added: {warning_msg}")
-            logger.info(f"Final state - status: {state.get('status')}, has_script: {bool(state.get('script'))}, warnings: {len(warnings)}")
+            logger.info(
+                f"Final state - status: {state.get('status')}, has_script: {bool(state.get('script'))}, warnings: {len(warnings)}"
+            )
         else:
-            # Check if refinement is needed based on confidence
-            # But first check if the NEXT iteration would exceed or equal max
-            # If we're at max-1 iterations, the next one would be the max, so we should complete
+            # We're in the else block, so current_iterations < max_iterations
+            # Check if the NEXT iteration would exceed max BEFORE deciding to refine
             next_iteration = current_iterations + 1
-            logger.info(f"Checking next iteration: {next_iteration} >= {max_iterations}?")
-            if next_iteration >= max_iterations:
-                # Next iteration would exceed max, so complete now
-                logger.info(f"Next iteration ({next_iteration}) would reach/exceed max ({max_iterations}), completing script")
-                state["needs_refinement"] = False
-                state["status"] = "completed"
-                
-                # Add warning about reaching max iterations
-                warnings = state.get("warnings", [])
-                total_claims = len(claims)
-                warning_msg = (
-                    f"Maximum refinement iterations ({max_iterations}) would be exceeded. "
-                    f"Script confidence score: {confidence_score:.1%}. "
-                )
-                if total_claims > 0:
-                    warning_msg += (
-                        f"Only {verified_count} out of {total_claims} factual claims could be verified. "
-                        f"Please review the fact-check results and verify unverified claims manually."
+
+            # Check if refinement is needed based on confidence
+            state["needs_refinement"] = confidence_score < confidence_threshold
+
+            if state["needs_refinement"]:
+                # Check if next iteration would exceed max
+                if next_iteration > max_iterations:
+                    # Next iteration would exceed max, so complete now instead of refining
+                    logger.info(
+                        f"Refinement needed but next iteration ({next_iteration}) would exceed max ({max_iterations}), completing script"
                     )
-                else:
-                    warning_msg += "No factual claims were extracted for verification."
-                
-                if warning_msg not in warnings:
-                    warnings.append(warning_msg)
-                state["warnings"] = warnings
-                
-                logger.info(f"Preventing refinement - next iteration ({next_iteration}) would exceed max ({max_iterations})")
-            else:
-                # Safe to refine if needed
-                state["needs_refinement"] = confidence_score < confidence_threshold
-                
-                if state["needs_refinement"]:
-                    state["refinement_iterations"] = next_iteration
-                    state["status"] = "needs_refinement"
-                else:
+                    state["needs_refinement"] = False
                     state["status"] = "completed"
+
+                    # Add warning about reaching max iterations
+                    warnings = state.get("warnings", [])
+                    total_claims = state.get("fact_check_results", {}).get(
+                        "total_claims", 0
+                    )
+                    warning_msg = (
+                        f"Maximum refinement iterations ({max_iterations}) would be exceeded. "
+                        f"Script confidence score: {confidence_score:.1%}. "
+                    )
+                    if total_claims > 0:
+                        warning_msg += (
+                            f"Only {verified_count} out of {total_claims} factual claims could be verified. "
+                            f"Please review the fact-check results and verify unverified claims manually."
+                        )
+                    else:
+                        warning_msg += (
+                            "No factual claims were extracted for verification."
+                        )
+
+                    if warning_msg not in warnings:
+                        warnings.append(warning_msg)
+                    state["warnings"] = warnings
+                else:
+                    # Safe to refine - but check if next_iteration would reach or exceed max
+                    # If next_iteration >= max_iterations, we should complete instead of refining
+                    if next_iteration >= max_iterations:
+                        # Next iteration would reach or exceed max, so complete now
+                        logger.info(
+                            f"Refinement needed but next iteration ({next_iteration}) would reach/exceed max ({max_iterations}), completing script"
+                        )
+                        state["needs_refinement"] = False
+                        state["status"] = "completed"
+
+                        # Add warning about reaching max iterations
+                        warnings = state.get("warnings", [])
+                        total_claims = state.get("fact_check_results", {}).get(
+                            "total_claims", 0
+                        )
+                        warning_msg = (
+                            f"Maximum refinement iterations ({max_iterations}) would be reached. "
+                            f"Script confidence score: {confidence_score:.1%}. "
+                        )
+                        if total_claims > 0:
+                            warning_msg += (
+                                f"Only {verified_count} out of {total_claims} factual claims could be verified. "
+                                f"Please review the fact-check results and verify unverified claims manually."
+                            )
+                        else:
+                            warning_msg += (
+                                "No factual claims were extracted for verification."
+                            )
+
+                        if warning_msg not in warnings:
+                            warnings.append(warning_msg)
+                        state["warnings"] = warnings
+                    else:
+                        # next_iteration < max_iterations, safe to refine
+                        state["refinement_iterations"] = next_iteration
+                        state["status"] = "needs_refinement"
+                        logger.info(
+                            f"Refinement needed - incrementing to iteration {next_iteration}/{max_iterations}"
+                        )
+            else:
+                state["status"] = "completed"
+                logger.info("Confidence acceptable - completing script")
 
         return state
     except Exception as e:
         logger.error(f"Error in fact_checking_node: {str(e)}", exc_info=True)
         state["errors"].append(f"fact_checking_node: {str(e)}")
         state["status"] = "failed"
+
+        # Ensure fact_check_results structure exists even on error
+        if "fact_check_results" not in state or "claims" not in state.get(
+            "fact_check_results", {}
+        ):
+            state["fact_check_results"] = {
+                "claims": [],
+                "confidence_score": 0.0,
+                "total_claims": 0,
+                "total_extracted_claims": 0,
+                "verified_claims": 0,
+                "issues": [],
+                "low_confidence_claims": [],
+            }
+
         return state

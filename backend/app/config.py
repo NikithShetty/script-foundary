@@ -75,7 +75,8 @@ class Settings(BaseSettings):
 
     # Fact Checker Settings
     max_refinement_iterations: int = 3  # Maximum number of refinement loops for fact checking
-    fact_checker_max_claims: int = 10  # Maximum number of claims to check per script
+    fact_checker_max_claims: int = 10  # Maximum number of claims to extract per script
+    fact_checker_top_n_claims: int = 5  # Number of top important claims to verify (sorted by importance)
     fact_checker_confidence_threshold: float = 0.8  # Confidence threshold for "verified" status (0.0-1.0)
     fact_checker_api_timeout: int = 10  # Timeout in seconds for Wikipedia API calls
 

@@ -79,9 +79,6 @@ def check_fact_check_results(state: SessionState) -> str:
     current_iterations = state.get("refinement_iterations", 0)
     needs_refinement = state.get("needs_refinement", False)
     confidence_score = state.get("confidence_score", 1.0)
-    fact_check_results = state.get("fact_check_results", {})
-    total_claims = fact_check_results.get("total_claims", 0)
-    verified_claims = fact_check_results.get("verified_claims", 0)
 
     logger.info("\n" + "=" * 80)
     logger.info("[DECISION] check_fact_check_results")
@@ -94,21 +91,45 @@ def check_fact_check_results(state: SessionState) -> str:
     # This takes priority - if node already completed, route to END
     if state.get("status") == "completed":
         decision = "complete"
-        logger.info(f"  → DECISION: {decision} (status already set to completed by node)")
+        logger.info(
+            f"  → DECISION: {decision} (status already set to completed by node)"
+        )
         logger.info("=" * 80)
         return decision
 
     # Check if we've exceeded max iterations
     # Note: State modifications (warnings, status) are handled in fact_checking_node
     # This function only returns routing decisions
-    # Also check if the next iteration would exceed max (defensive check)
-    if current_iterations >= max_iterations or (current_iterations + 1) > max_iterations:
+    if current_iterations >= max_iterations:
         decision = "complete"
-        logger.info(f"  → DECISION: {decision} (max iterations reached: {current_iterations}/{max_iterations})")
+        logger.info(
+            f"  → DECISION: {decision} (max iterations reached: {current_iterations}/{max_iterations})"
+        )
+        logger.info("=" * 80)
+        return decision
+
+    # Check if the NEXT iteration would exceed max (defensive check)
+    # This handles the case where the node incremented but status wasn't updated correctly
+    next_iteration = current_iterations + 1
+    if next_iteration > max_iterations:
+        decision = "complete"
+        logger.info(
+            f"  → DECISION: {decision} (next iteration {next_iteration} would exceed max {max_iterations})"
+        )
         logger.info("=" * 80)
         return decision
 
     # Check if refinement is needed
+    # But first, double-check we're not at max iterations (defensive)
+    # This handles edge cases where state might be inconsistent
+    if current_iterations >= max_iterations or next_iteration > max_iterations:
+        decision = "complete"
+        logger.info(
+            f"  → DECISION: {decision} (defensive check: iterations {current_iterations}/{max_iterations}, next would be {next_iteration})"
+        )
+        logger.info("=" * 80)
+        return decision
+
     confidence_threshold = settings.fact_checker_confidence_threshold
     if needs_refinement and confidence_score < confidence_threshold:
         decision = "refine"

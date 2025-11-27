@@ -15,21 +15,22 @@ WIKIPEDIA_SEARCH_URL = "https://en.wikipedia.org/w/api.php"  # MediaWiki API for
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 
 
-def extract_factual_claims(text: str) -> List[str]:
+def extract_factual_claims(text: str) -> List[Dict[str, Any]]:
     """
     Extract factual claims from text using LLM for better identification.
+    Returns claims with importance scores for prioritization.
 
     Args:
         text: Text to extract claims from
 
     Returns:
-        List of factual claims
+        List of dictionaries with 'claim' and 'importance' (0.0-1.0) keys
     """
     try:
         # Use LLM to extract factual claims
         client, provider, model = get_llm_client()
 
-        prompt = f"""Extract factual claims from the following educational script text. 
+        prompt = f"""Extract factual claims from the following educational script text and assign importance scores.
 Focus on statements that contain verifiable facts such as:
 - Dates, numbers, statistics
 - Definitions and explanations
@@ -43,18 +44,28 @@ Ignore:
 - Opinions or subjective statements
 - Questions
 
+For each claim, assign an importance score (0.0-1.0) based on:
+- Educational significance (core concepts = high importance)
+- Potential for misinformation (critical facts = high importance)
+- Relevance to learning objectives (central facts = high importance)
+- Trivial facts (common knowledge, obvious statements = low importance)
+
 Text to analyze:
 {text[:3000] if len(text) > 3000 else text}
 
-Return a JSON array of factual claim strings. Each claim should be a complete, verifiable statement.
-Example format: ["The Earth orbits the Sun", "Water boils at 100 degrees Celsius"]
+Return a JSON array of objects, each with "claim" (string) and "importance" (float 0.0-1.0).
+Example format: [
+  {{"claim": "The Earth orbits the Sun", "importance": 0.9}},
+  {{"claim": "Water boils at 100 degrees Celsius", "importance": 0.8}},
+  {{"claim": "The script is 5 minutes long", "importance": 0.2}}
+]
 
 Return only the JSON array, no other text."""
 
         messages = [
             {
                 "role": "system",
-                "content": "You are a fact extraction assistant. Extract only verifiable factual claims from text. Return only valid JSON arrays.",
+                "content": "You are a fact extraction assistant. Extract verifiable factual claims from text and assign importance scores. Return only valid JSON arrays with 'claim' and 'importance' fields.",
             },
             {"role": "user", "content": prompt},
         ]
@@ -80,17 +91,36 @@ Return only the JSON array, no other text."""
             content = content[:-3]
         content = content.strip()
 
-        claims = json.loads(content)
+        claims_data = json.loads(content)
 
-        # Limit to configured max claims
+        # Validate and normalize claims data
+        normalized_claims = []
+        for item in claims_data if isinstance(claims_data, list) else []:
+            if isinstance(item, dict) and "claim" in item:
+                # Ensure importance is a float between 0 and 1
+                importance = float(item.get("importance", 0.5))
+                importance = max(0.0, min(1.0, importance))
+                normalized_claims.append({
+                    "claim": str(item["claim"]),
+                    "importance": importance
+                })
+            elif isinstance(item, str):
+                # Backward compatibility: if just a string, assign default importance
+                normalized_claims.append({
+                    "claim": item,
+                    "importance": 0.5
+                })
+
+        # Sort by importance (highest first) and limit to max claims
+        normalized_claims.sort(key=lambda x: x["importance"], reverse=True)
         max_claims = settings.fact_checker_max_claims
-        return claims[:max_claims] if isinstance(claims, list) else []
+        return normalized_claims[:max_claims]
 
     except Exception as e:
         logger.warning(
             f"Error extracting claims with LLM, falling back to simple extraction: {str(e)}"
         )
-        # Fallback to simple extraction
+        # Fallback to simple extraction with basic importance scoring
         claims = []
         sentences = re.split(r"[.!?]+", text)
 
@@ -117,8 +147,22 @@ Return only the JSON array, no other text."""
             ):
                 # Check if it has numbers or specific terms
                 if re.search(r"\d+", sentence) or len(sentence.split()) > 5:
-                    claims.append(sentence)
+                    # Basic importance scoring: higher for numbers, dates, scientific terms
+                    importance = 0.3  # Base importance
+                    if re.search(r"\d{4}", sentence):  # Years/dates
+                        importance = 0.7
+                    elif re.search(r"\d+", sentence):  # Numbers
+                        importance = 0.5
+                    if any(term in sentence.lower() for term in ["definition", "means", "is defined", "consists"]):
+                        importance = max(importance, 0.6)  # Definitions are important
+                    
+                    claims.append({
+                        "claim": sentence,
+                        "importance": importance
+                    })
 
+        # Sort by importance and limit
+        claims.sort(key=lambda x: x["importance"], reverse=True)
         max_claims = settings.fact_checker_max_claims
         return claims[:max_claims]
 

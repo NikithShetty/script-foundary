@@ -631,10 +631,16 @@ async def get_script(session_id: str):
                 detail="Script not found in session",
             )
 
-        # Include warnings in fact_checking results if present
+        # Include fact-checking results - always include claims array
+        fact_check_results = state.get("fact_check_results", {})
+        
+        # Ensure claims array is always present in results
+        if "claims" not in fact_check_results:
+            fact_check_results["claims"] = []
+        
         fact_checking_data = {
             "confidence_score": state.get("confidence_score", 0.0),
-            "results": state.get("fact_check_results", {}),
+            "results": fact_check_results,  # Always includes claims array with checked facts and scores
         }
         
         # Add warnings if they exist
