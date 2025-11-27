@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     curricullm_api_key: Optional[str] = None
     curricullm_api_url: str = "https://api.curricullm.com"
+    brave_search_api_key: Optional[str] = None
 
     # Database
     database_url: str = "postgresql://postgres:postgres@localhost:5432/scriptfoundary"
@@ -74,11 +75,17 @@ class Settings(BaseSettings):
     graph_recursion_limit: int = 2
 
     # Fact Checker Settings
-    max_refinement_iterations: int = 3  # Maximum number of refinement loops for fact checking
+    max_refinement_iterations: int = (
+        3  # Maximum number of refinement loops for fact checking
+    )
     fact_checker_max_claims: int = 10  # Maximum number of claims to extract per script
-    fact_checker_top_n_claims: int = 5  # Number of top important claims to verify (sorted by importance)
-    fact_checker_confidence_threshold: float = 0.8  # Confidence threshold for "verified" status (0.0-1.0)
-    fact_checker_api_timeout: int = 10  # Timeout in seconds for Wikipedia API calls
+    fact_checker_top_n_claims: int = (
+        5  # Number of top important claims to verify (sorted by importance)
+    )
+    fact_checker_confidence_threshold: float = (
+        0.8  # Confidence threshold for "verified" status (0.0-1.0)
+    )
+    fact_checker_api_timeout: int = 10  # Timeout in seconds for Brave Search API calls
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent / ".env"),

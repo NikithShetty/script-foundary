@@ -17,7 +17,7 @@ An evidence-based, modular pipeline system for generating educational video scri
 - **Backend**: FastAPI with modular pipeline architecture
 - **Database**: Supabase (PostgreSQL)
 - **Vector Store**: FAISS (local) or Pinecone
-- **APIs**: CurricuLLM-AU, OpenAI/Anthropic, Wikipedia/Wikidata
+- **APIs**: CurricuLLM-AU, OpenAI/Anthropic, Brave Search
 
 ## Quick Start
 
@@ -73,6 +73,7 @@ npm run dev
 See `backend/.env.example` for required environment variables:
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 - `CURRICULLM_API_KEY`
+- `BRAVE_SEARCH_API_KEY` (for fact-checking)
 - `DATABASE_URL` (Supabase connection string)
 - `REDIS_URL` (optional, for caching) - Supports `redis://` and `rediss://` (SSL/TLS) for services like Upstash. Or use `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_SSL` separately
 

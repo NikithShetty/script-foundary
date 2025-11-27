@@ -55,7 +55,7 @@ export default function FactCheckPanel({ factChecking }: FactCheckPanelProps) {
       </div>
 
       {factChecking.results.length > 0 && (
-        <div className="space-y-3 mb-4">
+        <div className="space-y-3">
           <h4 className="font-semibold text-gray-700">Verified Claims</h4>
           {factChecking.results.map((result, index) => (
             <div
@@ -68,31 +68,30 @@ export default function FactCheckPanel({ factChecking }: FactCheckPanelProps) {
               <p className="text-sm text-gray-700 mb-1">
                 <span className="font-medium">Claim:</span> {result.claim}
               </p>
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-gray-600 mb-2">
                 {result.verified ? '✓ Verified' : '✗ Not verified'} - {result.notes}
               </p>
+              {result.sources && result.sources.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <p className="text-xs font-medium text-gray-600 mb-1">Sources:</p>
+                  <ul className="list-disc list-inside text-xs text-gray-700 space-y-1">
+                    {result.sources.map((source: string, sourceIndex: number) => (
+                      <li key={sourceIndex}>
+                        <a
+                          href={source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline break-all"
+                        >
+                          {source}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ))}
-        </div>
-      )}
-
-      {factChecking.citations.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-gray-700 mb-2">Sources</h4>
-          <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-            {factChecking.citations.map((citation, index) => (
-              <li key={index}>
-                <a
-                  href={citation}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  {citation}
-                </a>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

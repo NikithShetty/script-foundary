@@ -136,6 +136,7 @@ Required environment variables (in `backend/.env`):
 
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - LLM API key
 - `CURRICULLM_API_KEY` - CurricuLLM-AU API key (optional)
+- `BRAVE_SEARCH_API_KEY` - Brave Search API key (required for fact-checking)
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string (optional). Supports `redis://` and `rediss://` (SSL/TLS) for services like Upstash
 - `REDIS_HOST` - Redis host (optional, alternative to REDIS_URL)

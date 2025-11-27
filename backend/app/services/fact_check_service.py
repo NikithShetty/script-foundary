@@ -1,18 +1,15 @@
-"""Fact checking service using Wikipedia/Wikidata APIs."""
+"""Fact checking service using Brave Search API."""
 
-import os
 import re
 import requests
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from app.config import settings
 from app.services.llm_service import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-WIKIPEDIA_API_URL = "https://en.wikipedia.org/api/rest_v1/page/summary"
-WIKIPEDIA_SEARCH_URL = "https://en.wikipedia.org/w/api.php"  # MediaWiki API for search
-WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
+BRAVE_SEARCH_API_URL = "https://api.search.brave.com/res/v1/web/search"
 
 
 def extract_factual_claims(text: str) -> List[Dict[str, Any]]:
@@ -165,11 +162,11 @@ Return only the JSON array, no other text."""
 
 def _validate_claim_with_llm(claim: str, evidence: str) -> Dict[str, Any]:
     """
-    Use LLM to validate a claim against evidence from Wikipedia.
+    Use LLM to validate a claim against evidence from Brave Search.
 
     Args:
         claim: The factual claim to validate
-        evidence: Evidence text from Wikipedia
+        evidence: Evidence text from Brave Search results
 
     Returns:
         Dictionary with validation result including confidence score
@@ -177,11 +174,11 @@ def _validate_claim_with_llm(claim: str, evidence: str) -> Dict[str, Any]:
     try:
         client, provider, model = get_llm_client()
 
-        prompt = f"""You are a fact-checking assistant. Analyze the following claim against the provided evidence from Wikipedia.
+        prompt = f"""You are a fact-checking assistant. Analyze the following claim against the provided evidence from web search results.
 
 CLAIM TO VERIFY: {claim}
 
-EVIDENCE FROM WIKIPEDIA:
+EVIDENCE FROM WEB SEARCH:
 {evidence[:2000] if len(evidence) > 2000 else evidence}
 
 Determine:
@@ -256,7 +253,7 @@ Return only the JSON object, no other text."""
 
 def check_fact(claim: str) -> Dict[str, Any]:
     """
-    Check a factual claim against Wikipedia/Wikidata using LLM validation.
+    Check a factual claim against Brave Search using LLM validation.
 
     Args:
         claim: Factual claim to check
@@ -278,24 +275,21 @@ def check_fact(claim: str) -> Dict[str, Any]:
                 "evidence_summary": "",
             }
 
-        # Search Wikipedia for relevant information
-        wiki_result = _check_wikipedia(key_terms[0])
+        # Search Brave Search for relevant information
+        # Try with the full claim first, then fall back to key terms
+        search_query = claim
+        search_result = _search_brave(search_query)
 
-        if not wiki_result.get("found"):
-            # Try searching with the full claim or other key terms
-            for term in key_terms[1:]:
-                wiki_result = _check_wikipedia(term)
-                if wiki_result.get("found"):
+        if not search_result.get("found"):
+            # Try searching with key terms
+            for term in key_terms:
+                search_result = _search_brave(term)
+                if search_result.get("found"):
                     break
 
-        if wiki_result.get("found"):
-            # Use LLM to validate claim against Wikipedia evidence
-            evidence = wiki_result.get("extract", "")
-            if not evidence:
-                # Try to get more content from the page
-                page = _get_wikipedia_page(wiki_result.get("title", ""))
-                if page:
-                    evidence = page.get("extract", "")
+        if search_result.get("found"):
+            # Use LLM to validate claim against Brave Search evidence
+            evidence = search_result.get("evidence", "")
 
             if evidence:
                 validation = _validate_claim_with_llm(claim, evidence)
@@ -304,32 +298,28 @@ def check_fact(claim: str) -> Dict[str, Any]:
                     "claim": claim,
                     "verified": validation["verified"],
                     "confidence": validation["confidence"],
-                    "sources": [wiki_result.get("url", "")]
-                    if wiki_result.get("url")
-                    else [],
-                    "notes": validation.get("notes", "Verified via Wikipedia"),
+                    "sources": search_result.get("sources", []),
+                    "notes": validation.get("notes", "Verified via Brave Search"),
                     "evidence_summary": validation.get("evidence_summary", ""),
                 }
             else:
-                # Found page but no extract available
+                # Found results but no evidence text available
                 return {
                     "claim": claim,
-                    "verified": True,  # Page exists, assume verified
+                    "verified": True,  # Results found, assume verified
                     "confidence": 0.6,  # Lower confidence without evidence text
-                    "sources": [wiki_result.get("url", "")]
-                    if wiki_result.get("url")
-                    else [],
-                    "notes": "Wikipedia page found but content unavailable for detailed verification",
+                    "sources": search_result.get("sources", []),
+                    "notes": "Search results found but content unavailable for detailed verification",
                     "evidence_summary": "",
                 }
         else:
-            # No Wikipedia page found
+            # No search results found
             return {
                 "claim": claim,
                 "verified": False,
                 "confidence": 0.3,
                 "sources": [],
-                "notes": "Could not find relevant Wikipedia page for verification",
+                "notes": "Could not find relevant search results for verification",
                 "evidence_summary": "",
             }
 
@@ -366,131 +356,84 @@ def _extract_key_terms(text: str) -> List[str]:
     return key_terms[:3]  # Top 3 terms
 
 
-def _search_wikipedia(term: str) -> List[Dict[str, Any]]:
+def _search_brave(query: str) -> Dict[str, Any]:
     """
-    Search Wikipedia for a term using MediaWiki API.
+    Search Brave Search API for a query.
 
     Args:
-        term: Term to search for
+        query: Search query
 
     Returns:
-        List of search results with title, url, and extract
+        Dictionary with search results including evidence and sources
     """
     try:
-        url = WIKIPEDIA_SEARCH_URL
+        if not settings.brave_search_api_key:
+            logger.warning("Brave Search API key not configured")
+            return {"found": False, "evidence": "", "sources": []}
+
+        url = BRAVE_SEARCH_API_URL
+        headers = {
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip",
+            "X-Subscription-Token": settings.brave_search_api_key,
+        }
         params = {
-            "action": "query",
-            "list": "search",
-            "srsearch": term,
-            "srlimit": 3,
-            "format": "json",
+            "q": query,
+            "count": 5,  # Get top 5 results
         }
         timeout = settings.fact_checker_api_timeout
 
-        response = requests.get(url, params=params, timeout=timeout)
+        response = requests.get(url, headers=headers, params=params, timeout=timeout)
 
+        # Log request and truncated response
         if response.status_code == 200:
             data = response.json()
-            search_results = data.get("query", {}).get("search", [])
-            results = []
-            for item in search_results:
-                title = item.get("title", "")
-                # Get page summary for extract
-                page_data = _get_wikipedia_page(title)
-                if page_data:
-                    results.append(
-                        {
-                            "title": title,
-                            "url": page_data.get("url", ""),
-                            "extract": page_data.get("extract", ""),
-                        }
-                    )
-                else:
-                    # Fallback: create URL from title
-                    import urllib.parse
-
-                    encoded_title = urllib.parse.quote(title.replace(" ", "_"))
-                    results.append(
-                        {
-                            "title": title,
-                            "url": f"https://en.wikipedia.org/wiki/{encoded_title}",
-                            "extract": item.get("snippet", "")
-                            .replace('<span class="searchmatch">', "")
-                            .replace("</span>", ""),
-                        }
-                    )
-            return results
+            web_results = data.get("web", {}).get("results", [])
+            # Truncate response for logging (first 200 chars of JSON string)
+            response_str = str(data)[:200]
+            logger.info(
+                f"Brave Search API - Request: query='{query}' | Response (truncated): {response_str}..."
+            )
         else:
-            return []
-    except Exception as e:
-        logger.warning(f"Error searching Wikipedia for '{term}': {str(e)}")
-        return []
-
-
-def _get_wikipedia_page(title: str) -> Optional[Dict[str, Any]]:
-    """
-    Get Wikipedia page summary by title.
-
-    Args:
-        title: Wikipedia page title
-
-    Returns:
-        Dictionary with page data or None
-    """
-    try:
-        # URL encode the title
-        import urllib.parse
-
-        encoded_title = urllib.parse.quote(title.replace(" ", "_"))
-        url = f"{WIKIPEDIA_API_URL}/{encoded_title}"
-        timeout = settings.fact_checker_api_timeout
-
-        response = requests.get(url, timeout=timeout)
+            logger.info(
+                f"Brave Search API - Request: query='{query}' | Response: status={response.status_code}"
+            )
 
         if response.status_code == 200:
             data = response.json()
+            web_results = data.get("web", {}).get("results", [])
+
+            if not web_results:
+                return {"found": False, "evidence": "", "sources": []}
+
+            # Combine evidence from top results
+            evidence_parts = []
+            sources = []
+
+            for result in web_results[:3]:  # Use top 3 results
+                title = result.get("title", "")
+                description = result.get("description", "")
+                url = result.get("url", "")
+
+                if url:
+                    sources.append(url)
+
+                # Combine title and description as evidence
+                if title or description:
+                    evidence_text = f"{title}: {description}" if title else description
+                    evidence_parts.append(evidence_text)
+
+            evidence = "\n\n".join(evidence_parts)
+
             return {
                 "found": True,
-                "url": data.get("content_urls", {}).get("desktop", {}).get("page", ""),
-                "title": data.get("title", ""),
-                "extract": data.get("extract", ""),
-                "description": data.get("description", ""),
+                "evidence": evidence,
+                "sources": sources,
             }
         else:
-            return None
+            return {"found": False, "evidence": "", "sources": []}
     except Exception as e:
-        logger.warning(f"Error getting Wikipedia page '{title}': {str(e)}")
-        return None
-
-
-def _check_wikipedia(term: str) -> Dict[str, Any]:
-    """
-    Check term against Wikipedia API (legacy function for backward compatibility).
-
-    Args:
-        term: Term to search for
-
-    Returns:
-        Dictionary with search results
-    """
-    # First try direct page lookup
-    page = _get_wikipedia_page(term)
-    if page:
-        return {
-            "found": True,
-            "url": page.get("url", ""),
-            "title": page.get("title", ""),
-            "extract": page.get("extract", ""),
-        }
-
-    # If not found, try search
-    results = _search_wikipedia(term)
-    if results:
-        return {
-            "found": True,
-            "url": results[0].get("url", ""),
-            "title": results[0].get("title", ""),
-            "extract": results[0].get("extract", ""),
-        }
-
-    return {"found": False, "url": "", "title": "", "extract": ""}
+        logger.error(
+            f"Error searching Brave Search for '{query}': {str(e)}", exc_info=True
+        )
+        return {"found": False, "evidence": "", "sources": []}
