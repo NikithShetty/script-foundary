@@ -28,6 +28,111 @@ class BaseScriptGenerator(ABC):
         """Get the system prompt for this generator."""
         pass
 
+    def _get_script_structure_instructions(self) -> str:
+        """Get detailed script structure instructions based on requirements."""
+        return """## SCRIPT STRUCTURE
+
+Generate the educational script following this structure:
+
+### INTRO BLOCK
+
+Begin with these elements in sequence:
+
+1. **Orientation** (1 sentence)
+   - Introduce the topic simply and clearly
+
+2. **Misconception Prevention** (1-2 sentences)
+   - Address common misconceptions early using LNA data and curriculum misconceptions
+   - Prevent misconceptions before they form
+
+3. **Teaser/Hook** (1 short story, real-life example, or question)
+   - Use Kolb's Concrete Experience approach
+   - Engage learners with relatable, concrete content
+
+4. **Lesson Plan** (3-4 bullet points)
+   - Clearly state what learners will learn
+   - Set expectations for the lesson
+
+5. **Core Message Seed** (1 key idea)
+   - Introduce the central "big idea" early
+   - This is the main concept learners should understand
+
+6. **I DO Start** (first teacher-led explanation)
+   - Begin Gradual Release of Responsibility
+   - Teacher models the concept fully
+
+---
+
+### SUBTOPIC BLOCKS
+
+For each curriculum concept, include this pattern:
+
+1. **Concept Naming** - Define the micro-concept clearly
+2. **Explanation** - Simple, clear, age-appropriate explanation
+3. **Dual-Coding Description** - Specify what visuals should show (visual and verbal work together, not redundantly)
+4. **Worked Example (I DO)** - Teacher demonstrates the concept fully
+5. **Guided Example (WE DO)** - Teacher and student work together
+6. **Reflective Question** - Ask "Why do you think...?" to promote deeper thinking
+7. **Micro to Macro Connection** - Connect this concept to the bigger picture
+8. **Retrieval Questions** - Check understanding with recall questions
+9. **Misconception Alert** (only if relevant) - Address specific misconceptions if they arise
+
+Repeat this block for each curriculum concept.
+
+---
+
+### MIDPOINT SUMMARY
+
+Include a brief summary section with:
+- Short recap (3 bullet points summarizing key points covered)
+- One reflective question to encourage deeper thinking
+- One misconception check to verify understanding
+- Simple transition sentence to the next concept
+
+---
+
+### FINAL BLOCK
+
+Conclude with these elements in order:
+
+1. **Return to Intro Promise**
+   - Reference what was promised at the start
+   - Close the learning loop
+
+2. **Key Idea Highlights** (2-3 bullet points)
+   - Reinforce the most important concepts
+
+3. **Core Message Repeat**
+   - Restate the central "big idea" from the intro
+
+4. **Take-Home Message**
+   - One clear, memorable statement
+
+5. **Final Retrieval Questions**
+   - Comprehensive check of understanding
+
+6. **YOU DO Task**
+   - Learner applies the idea independently (Kolb's Active Experimentation)
+   - Full transfer of responsibility
+
+7. **Transfer Confirmation**
+   - Confirm learner is ready to apply knowledge independently
+
+---
+
+### SCENE OUTPUT FORMAT
+
+Each scene in the script must include all of these elements:
+
+- **Narration**: What the teacher/narrator says
+- **Visual Description**: Detailed description of what should be shown visually
+- **On-Screen Text**: Any text overlays, labels, or captions
+- **Accessibility Note**: Considerations for accessibility (alt text, captions, etc.)
+- **Tags**: Optional metadata tags
+- **Teacher Notes**: Misconceptions to watch for, retrieval cues, pedagogical reminders
+
+Format each scene clearly with these sections explicitly labeled."""
+
     def build_prompt(self, context: Dict[str, Any]) -> str:
         """Build the full prompt from context."""
         topic = context.get("topic", "")
@@ -101,16 +206,19 @@ Original Requirements:
             prompt += f"Script Pace: {pace_instruction}\n\n"
 
             prompt += self.get_system_prompt()
+            prompt += "\n\n"
+            prompt += self._get_script_structure_instructions()
             prompt += "\n\nINSTRUCTIONS FOR MODIFICATION:\n"
             prompt += "1. Carefully review the existing script above\n"
             prompt += "2. Understand the user's modification request\n"
             prompt += "3. Modify the script according to the request, preserving what should remain unchanged\n"
             prompt += "4. Ensure the modified script still meets all original requirements (topic, year level, learning objective, curriculum alignment)\n"
-            prompt += "5. Maintain the same format and structure unless the modification request specifically asks to change it\n"
+            prompt += "5. Maintain the structure defined above (Intro Block, Subtopic Blocks, Midpoint Summary, Final Block) unless the modification request specifically asks to change it\n"
+            prompt += "6. Ensure each scene includes all required elements: Narration, Visual description, On-screen text, Accessibility note, Teacher notes\n"
             prompt += (
-                "6. Generate the complete modified script (not just the changes)\n\n"
+                "7. Generate the complete modified script (not just the changes)\n\n"
             )
-            prompt += "Generate the modified educational script that addresses the user's request while maintaining quality, accuracy, and curriculum alignment."
+            prompt += "Generate the modified educational script that addresses the user's request while maintaining quality, accuracy, curriculum alignment, and the required structure."
 
             return prompt
 
@@ -175,7 +283,9 @@ Learning Objective: {learning_objective}
             prompt += "\n"
 
         prompt += self.get_system_prompt()
-        prompt += "\n\nGenerate a comprehensive educational script that is engaging, accurate, and aligned with the curriculum."
+        prompt += "\n\n"
+        prompt += self._get_script_structure_instructions()
+        prompt += "\n\nGenerate a comprehensive educational script that follows the structure above and is engaging, accurate, and aligned with the curriculum."
 
         return prompt
 
@@ -190,8 +300,8 @@ Learning Objective: {learning_objective}
             logger.info(f"[LLM CALL] Script Generation - {self.__class__.__name__}")
             logger.info("=" * 80)
             logger.info(f"Model: {self.model}")
-            logger.info(f"Temperature: 0.7")
-            logger.info(f"Max Tokens: 4000")
+            logger.info("Temperature: 0.7")
+            logger.info("Max Tokens: 4000")
             logger.info("\n--- SYSTEM PROMPT ---")
             system_preview = (
                 system_prompt[:500] if len(system_prompt) > 500 else system_prompt

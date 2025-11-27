@@ -41,45 +41,112 @@ Topic: {topic}
 Year Level: {year_level}
 Learning Objective: {learning_objective}
 {curriculum_text}
-Follow the FAME framework:
-- Fading: Start with full worked example, gradually remove scaffolding
-- Alternating: Alternate worked examples with student practice
-- Mistakes: Include common errors (with corrections)
-- Explanation: Include "think-aloud" narration explaining reasoning
 {misconception_text}
-Include:
-1. Scene-by-scene breakdown with visual descriptions
-2. Character/voice guidance
-3. One "misconception warning" based on the misconceptions listed above
-4. Spaced retrieval question
-5. Accessibility captions for each visual
-6. Curriculum alignment markers
 
-Script Structure:
-SCENE 1: Hook & Context
-[Visual description]
-[Narration]
-[Text overlay]
-[Accessibility cue]
+## SCRIPT STRUCTURE
 
-SCENE 2: Worked Example (I DO)
-[Problem setup]
-[Step-by-step solution with thinking aloud]
-[Visual metaphor reinforcement]
+Generate the educational script following this structure:
 
-SCENE 3: Faded Example (WE DO)
-[Similar problem, partially solved]
-[Student prompts for completion]
-[Reveal solution with explanation]
+### INTRO BLOCK
 
-SCENE 4: Key Concept Summary
-[Spaced retrieval question]
-[Common misconception addressed]
-[Reinforcement visual]
+Begin with these elements in sequence:
 
-SCENE 5: Closure & Next Steps
-[Summary of learning objective]
-[Connection to curriculum outcome]
+1. **Orientation** (1 sentence)
+   - Introduce the topic simply and clearly
+
+2. **Misconception Prevention** (1-2 sentences)
+   - Address common misconceptions early using LNA data and curriculum misconceptions
+   - Prevent misconceptions before they form
+
+3. **Teaser/Hook** (1 short story, real-life example, or question)
+   - Use Kolb's Concrete Experience approach
+   - Engage learners with relatable, concrete content
+
+4. **Lesson Plan** (3-4 bullet points)
+   - Clearly state what learners will learn
+   - Set expectations for the lesson
+
+5. **Core Message Seed** (1 key idea)
+   - Introduce the central "big idea" early
+   - This is the main concept learners should understand
+
+6. **I DO Start** (first teacher-led explanation)
+   - Begin Gradual Release of Responsibility
+   - Teacher models the concept fully
+
+---
+
+### SUBTOPIC BLOCKS
+
+For each curriculum concept, include this pattern:
+
+1. **Concept Naming** - Define the micro-concept clearly
+2. **Explanation** - Simple, clear, age-appropriate explanation
+3. **Dual-Coding Description** - Specify what visuals should show (visual and verbal work together, not redundantly)
+4. **Worked Example (I DO)** - Teacher demonstrates the concept fully
+5. **Guided Example (WE DO)** - Teacher and student work together
+6. **Reflective Question** - Ask "Why do you think...?" to promote deeper thinking
+7. **Micro to Macro Connection** - Connect this concept to the bigger picture
+8. **Retrieval Questions** - Check understanding with recall questions
+9. **Misconception Alert** (only if relevant) - Address specific misconceptions if they arise
+
+Repeat this block for each curriculum concept.
+
+---
+
+### MIDPOINT SUMMARY
+
+Include a brief summary section with:
+- Short recap (3 bullet points summarizing key points covered)
+- One reflective question to encourage deeper thinking
+- One misconception check to verify understanding
+- Simple transition sentence to the next concept
+
+---
+
+### FINAL BLOCK
+
+Conclude with these elements in order:
+
+1. **Return to Intro Promise**
+   - Reference what was promised at the start
+   - Close the learning loop
+
+2. **Key Idea Highlights** (2-3 bullet points)
+   - Reinforce the most important concepts
+
+3. **Core Message Repeat**
+   - Restate the central "big idea" from the intro
+
+4. **Take-Home Message**
+   - One clear, memorable statement
+
+5. **Final Retrieval Questions**
+   - Comprehensive check of understanding
+
+6. **YOU DO Task**
+   - Learner applies the idea independently (Kolb's Active Experimentation)
+   - Full transfer of responsibility
+
+7. **Transfer Confirmation**
+   - Confirm learner is ready to apply knowledge independently
+
+---
+
+### SCENE OUTPUT FORMAT
+
+Each scene in the script must include all of these elements:
+
+- **Narration**: What the teacher/narrator says
+- **Visual Description**: Detailed description of what should be shown visually
+- **On-Screen Text**: Any text overlays, labels, or captions
+- **Accessibility Note**: Considerations for accessibility (alt text, captions, etc.)
+- **Tags**: Optional metadata tags
+- **Teacher Notes**: Misconceptions to watch for, retrieval cues, pedagogical reminders
+
+Format each scene clearly with these sections explicitly labeled.
+
+## QUALITY GUIDELINES
 
 Avoid:
 - Oversimplification that creates false mental models
