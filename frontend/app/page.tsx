@@ -43,7 +43,7 @@ export default function Home() {
           <div className="mb-2">
             <Image
               src="/logo.png"
-              alt="Script Foundary"
+              alt="Script Foundry"
               width={300}
               height={300}
               className="object-contain"
@@ -51,7 +51,7 @@ export default function Home() {
             />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Script Foundary
+            Script Foundry
           </h1>
           <p className="text-gray-600">
             Chat with AI to collaboratively create evidence-based educational scripts with curriculum alignment,

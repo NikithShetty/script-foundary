@@ -48,7 +48,7 @@ if settings.debug:
 
 # Create FastAPI app
 app = FastAPI(
-    title="Script Foundary API",
+    title="Script Foundry API",
     description="Evidence-based educational script generation with curriculum alignment",
     version="1.0.0",
 )
@@ -428,7 +428,7 @@ async def send_message(session_id: str, request: ChatRequest):
 
         # Save updated state
         await store_session(session_id, result)
-        
+
         # Log state for debugging when completed
         status_value = result.get("status", "collecting_info")
         if status_value == "completed":
@@ -622,7 +622,9 @@ async def get_script(session_id: str):
 
         script = state.get("script")
         if not script:
-            logger.error(f"Script not found in session {session_id} even though status is completed")
+            logger.error(
+                f"Script not found in session {session_id} even though status is completed"
+            )
             logger.error(f"State keys: {list(state.keys())}")
             logger.error(f"State status: {state.get('status')}")
             logger.error(f"State warnings: {state.get('warnings', [])}")
@@ -633,21 +635,21 @@ async def get_script(session_id: str):
 
         # Include fact-checking results - always include claims array
         fact_check_results = state.get("fact_check_results", {})
-        
+
         # Ensure claims array is always present in results
         if "claims" not in fact_check_results:
             fact_check_results["claims"] = []
-        
+
         fact_checking_data = {
             "confidence_score": state.get("confidence_score", 0.0),
             "results": fact_check_results,  # Always includes claims array with checked facts and scores
         }
-        
+
         # Add warnings if they exist
         warnings = state.get("warnings", [])
         if warnings:
             fact_checking_data["warnings"] = warnings
-        
+
         return ScriptResponse(
             session_id=session_id,
             topic=state.get("topic", ""),
